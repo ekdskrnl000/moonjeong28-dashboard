@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { db } from './firebase';
 import { collection, onSnapshot, doc, updateDoc, writeBatch } from "firebase/firestore";
 
-// ─── Owner Data from Excel ───
+// ─── Owner Data from Excel ─── [cite: 2-10]
 const RAW_OWNERS = [
   {"id":1,"sn":1,"nm":"광주이씨광천군파문정총회","addr":"문정동 28","tp":"제2종근린생활시설","cat":"상가/기타","area":233.3,"asset":2838168160,"rights":4319408122,"agreed":false,"age":"","fullAddr":"서울특별시 송파구 가락동 120-1","residing":false,"items":1},
   {"id":2,"sn":2,"nm":"이종학","addr":"문정동 28-1 청송하이츠빌B 101호 외 2건","tp":"근린생활시설","cat":"상가/기타","area":488.4,"asset":5879797500,"rights":8948463815,"agreed":false,"age":"70대","fullAddr":"서울 송파구 문정동 4-3","residing":false,"items":3},
@@ -199,7 +199,6 @@ function LoginScreen({ onLogin }) {
   const [userId, setUserId] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
-
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!userId) { setErr("접속할 담당자를 선택해주세요."); return; }
@@ -207,7 +206,6 @@ function LoginScreen({ onLogin }) {
     if (pwd !== user.pin) { setErr("비밀번호가 일치하지 않습니다."); return; }
     onLogin(user.role === "담당" ? user.name : `${user.name} ${user.role}`);
   };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0C0C0E", color: "#E8E6E1", fontFamily: "'Pretendard', sans-serif" }}>
       <div style={{ background: "#161618", padding: "32px 24px", borderRadius: 16, width: "90%", maxWidth: 360, border: "1px solid #2A2A2E", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
@@ -219,7 +217,7 @@ function LoginScreen({ onLogin }) {
             {AUTHORIZED_USERS.map(u => <option key={u.id} value={u.id}>{u.name} {u.role}</option>)}
           </select>
           <input type="password" placeholder="접속 비밀번호 (PIN)" value={pwd} onChange={(e) => setPwd(e.target.value)} style={{ padding: "14px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#fff", fontSize: 15, outline: "none", letterSpacing: 2 }} />
-          {err && <p style={{ color: "#FF2A55", fontSize: 12, fontWeight: 700, margin: "4px 0" }}>{err}</p>}
+          {err && <p style={{ color: "#FF2A55", fontSize: 12, fontWeight: 700 }}>{err}</p>}
           <button type="submit" className="btn-press" style={{ marginTop: 12, padding: "16px", background: "linear-gradient(135deg, #FF2A55, #C81A40)", color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>시스템 접속</button>
         </form>
       </div>
@@ -237,6 +235,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [catTab, setCatTab] = useState("공동주택");
 
+  // 파이어베이스 실시간 데이터 연동
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "owners"), (snapshot) => {
       const ownerData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
@@ -254,13 +253,11 @@ export default function App() {
       setOwners(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
       const ownerRef = doc(db, "owners", String(id));
       await updateDoc(ownerRef, updates);
-    } catch (error) {
-      console.error("저장 실패:", error);
-    }
+    } catch (error) { console.error("저장 실패:", error); }
   }, []);
 
   const syncInitialData = async () => {
-    if (!window.confirm("데이터베이스 초기화를 진행할까요?")) return;
+    if (!window.confirm("DB 초기화를 진행할까요?")) return;
     const batch = writeBatch(db);
     RAW_OWNERS.forEach(o => {
       const docRef = doc(db, "owners", String(o.id));
@@ -327,13 +324,15 @@ export default function App() {
             </header>
             <main style={{ flex: 1, overflowY: "auto", padding: "0 16px 100px" }}>
               {view === "dash" && <Dashboard stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} />}
-              {view === "map" && <InteractiveSvgMap owners={owners} onSelect={setSelectedId} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={false} />}
+              {view === "cat" && <CategoryView stats={stats} catTab={catTab} setCatTab={setCatTab} />}
+              {view === "map" && <div className="mobile-only-map"><InteractiveSvgMap owners={owners} onSelect={setSelectedId} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={false} /></div>}
               {view === "list" && <ListView owners={owners} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} onSelect={setSelectedId} stats={stats} />}
             </main>
             <nav style={{ position: "absolute", bottom: 0, width: "100%", background: "rgba(12,12,14,0.92)", borderTop: "1px solid #1E1E22", display: "flex", justifyContent: "space-around", padding: "8px 0" }}>
-              <button onClick={() => setView("dash")} style={{ background: "none", border: "none", color: view === "dash" ? "#FF2A55" : "#9CA3AF" }}><IconHome /><span style={{ display: 'block', fontSize: 10 }}>대시보드</span></button>
-              <button onClick={() => setView("map")} style={{ background: "none", border: "none", color: view === "map" ? "#FF2A55" : "#9CA3AF" }}><IconMap /><span style={{ display: 'block', fontSize: 10 }}>지적도</span></button>
-              <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: view === "list" ? "#FF2A55" : "#9CA3AF" }}><IconUsers /><span style={{ display: 'block', fontSize: 10 }}>소유자</span></button>
+              <button onClick={() => setView("dash")} style={{ background: "none", border: "none", color: view === "dash" ? "#FF2A55" : "#9CA3AF", display: 'flex', flexDirection: 'column', alignItems: 'center' }}><IconHome /><span style={{ fontSize: 10 }}>대시보드</span></button>
+              <button className="nav-btn-map" onClick={() => setView("map")} style={{ background: "none", border: "none", color: view === "map" ? "#FF2A55" : "#9CA3AF", display: 'flex', flexDirection: 'column', alignItems: 'center' }}><IconMap /><span style={{ fontSize: 10 }}>지적도</span></button>
+              <button onClick={() => setView("cat")} style={{ background: "none", border: "none", color: view === "cat" ? "#FF2A55" : "#9CA3AF", display: 'flex', flexDirection: 'column', alignItems: 'center' }}><IconChart /><span style={{ fontSize: 10 }}>용도별</span></button>
+              <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: view === "list" ? "#FF2A55" : "#9CA3AF", display: 'flex', flexDirection: 'column', alignItems: 'center' }}><IconUsers /><span style={{ fontSize: 10 }}>소유자</span></button>
             </nav>
           </>
         )}
@@ -345,11 +344,156 @@ export default function App() {
   );
 }
 
-// 하위 컴포넌트들은 기존 260409_15_00.txt의 내용을 바탕으로 모두 아래에 포함시켜야 합니다.
-// (공간상 상세 컴포넌트 코드는 생략하지만, 실제 적용 시에는 파일 끝까지 모든 함수를 포함하세요.)
-function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, isDesktop, initialScale = 0.45 }) { return <div>지적도 영역</div>; }
-function Dashboard({ stats, remainingOwner, remainingArea, setView, setFilter, target }) { return <div>대시보드 영역</div>; }
-function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stats }) { return <div>목록 영역</div>; }
-function DetailView({ owner, onBack, updateOwner, currentUser }) { return <div>상세보기 영역</div>; }
-function StatCard({ label, value, sub, accent, onClick }) { return <div>카드</div>; }
-function DonutCard({ title, percent, data, target, sub, color, gradStart, remainingText }) { return <div>차트</div>; }
+// ─── InteractiveSvgMap ─── [cite: 89-181]
+function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, isDesktop = false, initialScale = 0.45 }) {
+  const containerRef = useRef(null);
+  const [panZoom, setPanZoom] = useState({ x: 0, y: 0, scale: initialScale });
+  const [selectedLot, setSelectedLot] = useState(null);
+  const [catFilter, setCatFilter] = useState("전체");
+  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, initialX: 0, initialY: 0, pinchDist: 0, isMoved: false });
+  const lotData = useMemo(() => {
+    const lots = {};
+    Object.entries(BASE_POLYS).forEach(([jibun, p]) => {
+      const ownersOnLot = owners.filter(o => (OWNER_LOTS[o.sn] || []).includes(jibun));
+      const totalCount = ownersOnLot.length;
+      const agreedCount = ownersOnLot.filter(o => o.agreed).length;
+      const xSum = p.reduce((s, pt) => s + pt[0], 0) / p.length;
+      const ySum = p.reduce((s, pt) => s + pt[1], 0) / p.length;
+      const primaryCat = ownersOnLot.length > 0 ? ownersOnLot[0].cat : "기타";
+      lots[jibun] = { jibun, center: MANUAL_CENTERS[jibun] || [xSum, ySum], polygon: p, owners: ownersOnLot, totalCount, agreedCount, primaryCat, allAgreed: totalCount > 0 && agreedCount === totalCount, someAgreed: agreedCount > 0 && agreedCount < totalCount, noneAgreed: totalCount > 0 && agreedCount === 0, isEmpty: totalCount === 0 };
+    });
+    return lots;
+  }, [owners]);
+
+  const handlePointerDown = (e) => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragRef.current = { ...dragRef.current, isDragging: true, startX: clientX, startY: clientY, initialX: panZoom.x, initialY: panZoom.y, isMoved: false };
+  };
+  const handlePointerMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - dragRef.current.startX; const dy = clientY - dragRef.current.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragRef.current.isMoved = true;
+    setPanZoom(prev => ({ ...prev, x: dragRef.current.initialX + dx, y: dragRef.current.initialY + dy }));
+  };
+  const handleLotClick = (lot) => { if (!dragRef.current.isMoved && !lot.isEmpty) setSelectedLot(lot); };
+
+  return (
+    <div style={{ height: '100%', position: 'relative', overflow: 'hidden', background: '#0a0a0a', borderRadius: 16, border: '1px solid #2A2A2E' }} onMouseDown={handlePointerDown} onMouseMove={handlePointerMove} onMouseUp={() => dragRef.current.isDragging = false} onTouchStart={handlePointerDown} onTouchMove={handlePointerMove} onTouchEnd={() => dragRef.current.isDragging = false}>
+      <svg viewBox="-5 -5 110 70" style={{ width: '100%', height: '100%', transform: `translate(${panZoom.x}px, ${panZoom.y}px) scale(${panZoom.scale})`, transformOrigin: 'center' }}>
+        {Object.values(lotData).map(lot => (
+          <g key={lot.jibun} onClick={() => handleLotClick(lot)} style={{ cursor: 'pointer' }}>
+            <polygon points={lot.polygon.map(pt => pt.join(',')).join(' ')} fill={lot.isEmpty ? '#222' : lot.allAgreed ? '#22C55E66' : lot.someAgreed ? '#EAB30866' : '#EF444466'} stroke="#4A4A55" strokeWidth="0.2" />
+            <text x={lot.center[0]} y={lot.center[1]} fontSize="2" fill="#fff" textAnchor="middle" fontWeight="bold">{lot.jibun.split('-')[1] || lot.jibun}</text>
+          </g>
+        ))}
+        <polygon points={BASE_RED_BOUNDARY.map(pt => pt.join(',')).join(' ')} fill="none" stroke="#FF2A55" strokeWidth="0.5" strokeDasharray="1,1" />
+      </svg>
+      {selectedLot && (
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: '#fff', padding: 16, borderRadius: 12, color: '#000', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 100 }}>
+          <h3 style={{ marginBottom: 8 }}>문정동 {selectedLot.jibun}</h3>
+          <ul style={{ listStyle: 'none', maxHeight: 200, overflowY: 'auto' }}>
+            {selectedLot.owners.map(o => <li key={o.id} onClick={() => { onSelect(o.id); setSelectedLot(null); }} style={{ padding: '8px 0', borderBottom: '1px solid #eee', cursor: 'pointer' }}>{o.nm} ({o.agreed ? '동의' : '미동의'})</li>)}
+          </ul>
+          <button onClick={() => setSelectedLot(null)} style={{ marginTop: 12, width: '100%', padding: 8 }}>닫기</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Dashboard & Other UI Components ───
+function Dashboard({ stats, remainingOwner, remainingArea, setView, setFilter, target }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <StatCard label="전체 소유자" value={`${stats.total}명`} sub={`동의 ${stats.agreed}명`} accent="#FF2A55" />
+        <StatCard label="오늘 동의" value={`+${stats.todayCount}건`} sub="실시간 업데이트" accent="#5BA87F" />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <DonutCard title="소유자 동의율" percent={stats.ownerRate} target={target.owner} color="#FF2A55" gradStart="#FF8A00" sub={`${stats.agreed}/${stats.total}명`} />
+        <DonutCard title="면적 동의율" percent={stats.areaRate} target={target.area} color="#5BA87F" gradStart="#00E676" sub={`${fmtNum(stats.agreedArea)}㎡`} />
+      </div>
+    </div>
+  );
+}
+
+function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stats }) {
+  const filtered = owners.filter(o => {
+    const matchSearch = !search || o.nm.includes(search) || o.addr.includes(search);
+    if (filter === "동의완료") return matchSearch && o.agreed;
+    if (filter === "미동의") return matchSearch && !o.agreed;
+    return matchSearch;
+  });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="이름 또는 주소 검색" style={{ padding: 12, borderRadius: 10, background: "#161618", border: "1px solid #1E1E22", color: "#fff" }} />
+      <div style={{ display: "flex", gap: 6 }}>
+        {["전체", "미동의", "동의완료"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 12px", borderRadius: 20, background: filter === f ? "#FF2A55" : "#1E1E22", color: "#fff", border: "none" }}>{f}</button>)}
+      </div>
+      {filtered.map(o => (
+        <div key={o.id} onClick={() => onSelect(o.id)} style={{ background: "#161618", padding: 16, borderRadius: 12, display: "flex", justifyContent: "space-between" }}>
+          <div><p style={{ fontWeight: "bold" }}>{o.nm}</p><p style={{ fontSize: 12, color: "#9CA3AF" }}>{o.addr}</p></div>
+          <span style={{ color: o.agreed ? "#22C55E" : "#EF4444" }}>{o.agreed ? "동의" : "미동의"}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DetailView({ owner, onBack, updateOwner, currentUser }) {
+  const [newMemo, setNewMemo] = useState("");
+  const handleAddMemo = () => {
+    const m = { id: Date.now(), date: new Date().toLocaleString(), author: currentUser, text: newMemo };
+    updateOwner(owner.id, { memoHistory: [...(owner.memoHistory || []), m] });
+    setNewMemo("");
+  };
+  return (
+    <div style={{ padding: 20, color: "#E8E6E1" }}>
+      <button onClick={onBack} style={{ marginBottom: 20, color: "#FF2A55", background: "none", border: "none" }}>← 뒤로가기</button>
+      <h2>{owner.nm} 소유주</h2>
+      <div style={{ background: "#161618", padding: 20, borderRadius: 16, marginTop: 12 }}>
+        <p>주소: {owner.addr}</p>
+        <p>면적: {owner.area}㎡</p>
+        <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+          <button onClick={() => updateOwner(owner.id, { agreed: true, agreedBy: currentUser, consentDate: new Date().toISOString().split('T')[0] })} style={{ flex: 1, padding: 12, background: owner.agreed ? "#5BA87F" : "#2A2A2E", color: "#fff", border: "none", borderRadius: 8 }}>동의 완료</button>
+          <button onClick={() => updateOwner(owner.id, { agreed: false })} style={{ flex: 1, padding: 12, background: !owner.agreed ? "#E05252" : "#2A2A2E", color: "#fff", border: "none", borderRadius: 8 }}>미동의</button>
+        </div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <h3>상담 메모</h3>
+        <textarea value={newMemo} onChange={e => setNewMemo(e.target.value)} style={{ width: "100%", height: 100, marginTop: 10, background: "#1E1E22", color: "#fff", padding: 12, borderRadius: 8 }} />
+        <button onClick={handleAddMemo} style={{ marginTop: 8, width: "100%", padding: 12, background: "#FF2A55", color: "#fff", border: "none", borderRadius: 8 }}>메모 추가</button>
+        <div style={{ marginTop: 20 }}>
+          {(owner.memoHistory || []).map(m => <div key={m.id} style={{ background: "#2A2A2E", padding: 12, borderRadius: 8, marginBottom: 8 }}><p style={{ fontSize: 10, color: "#9CA3AF" }}>{m.date} - {m.author}</p><p>{m.text}</p></div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub, accent }) {
+  return <div style={{ background: "#161618", padding: 16, borderRadius: 16, border: "1px solid #1E1E22" }}><p style={{ fontSize: 11, color: "#9CA3AF" }}>{label}</p><p style={{ fontSize: 24, fontWeight: "bold", color: accent }}>{value}</p><p style={{ fontSize: 11, color: "#9CA3AF" }}>{sub}</p></div>;
+}
+function DonutCard({ title, percent, sub, color, gradStart }) {
+  const data = [{ v: percent }, { v: 100 - percent }];
+  return (
+    <div style={{ background: "#161618", padding: 16, borderRadius: 16, textAlign: "center" }}>
+      <p style={{ fontSize: 11, color: "#9CA3AF" }}>{title}</p>
+      <div style={{ height: 100, position: "relative" }}>
+        <ResponsiveContainer><PieChart><Pie data={data} innerRadius={35} outerRadius={45} dataKey="v" stroke="none"><Cell fill={color} /><Cell fill="#2A2A2E" /></Pie></PieChart></ResponsiveContainer>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}><p style={{ fontWeight: "bold" }}>{percent.toFixed(1)}%</p></div>
+      </div>
+      <p style={{ fontSize: 10, color: "#9CA3AF" }}>{sub}</p>
+    </div>
+  );
+}
+function CategoryView({ stats, catTab, setCatTab }) {
+  const d = stats.byCategory[catTab];
+  return <div style={{ background: "#161618", padding: 20, borderRadius: 16 }}><div style={{ display: "flex", gap: 10, marginBottom: 20 }}>{["공동주택", "단독/다가구", "상가/기타"].map(c => <button key={c} onClick={() => setCatTab(c)} style={{ flex: 1, padding: 10, background: catTab === c ? "#2A2A2E" : "none", color: "#fff", border: "1px solid #2A2A2E", borderRadius: 8 }}>{c}</button>)}</div><h3>{catTab} 동의율: {(d.agreed/d.total*100).toFixed(1)}%</h3><ProgressBar value={(d.agreed/d.total*100)} color="#FF2A55" /></div>;
+}
+function ProgressBar({ value, color }) {
+  return <div style={{ height: 6, background: "#2A2A2E", borderRadius: 3, marginTop: 10, overflow: "hidden" }}><div style={{ height: "100%", width: `${value}%`, background: color }} /></div>;
+}
