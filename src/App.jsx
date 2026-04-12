@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-// 파이어베이스 도구 임포트
 import { db } from './firebase';
 import { collection, onSnapshot, doc, updateDoc, writeBatch } from "firebase/firestore";
 
-// ─── 소유자 데이터 (원본 그대로 유지) ─── [cite: 2-10]
+// ─── Owner Data from Excel ───
 const RAW_OWNERS = [
   {"id":1,"sn":1,"nm":"광주이씨광천군파문정총회","addr":"문정동 28","tp":"제2종근린생활시설","cat":"상가/기타","area":233.3,"asset":2838168160,"rights":4319408122,"agreed":false,"age":"","fullAddr":"서울특별시 송파구 가락동 120-1","residing":false,"items":1},
   {"id":2,"sn":2,"nm":"이종학","addr":"문정동 28-1 청송하이츠빌B 101호 외 2건","tp":"근린생활시설","cat":"상가/기타","area":488.4,"asset":5879797500,"rights":8948463815,"agreed":false,"age":"70대","fullAddr":"서울 송파구 문정동 4-3","residing":false,"items":3},
@@ -150,6 +149,7 @@ const IconLock = (p) => <Icon {...p} d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1
 
 // ─── BASE POLYS ───
 const BASE_POLYS = {
+  // Top Row
   "28-31": [[15, 0], [25, 0], [25, 15], [15, 15]],
   "28-8":  [[25, 0], [35, 0], [35, 15], [25, 15]],
   "28-7":  [[35, 0], [45, 0], [45, 15], [35, 15]],
@@ -157,9 +157,13 @@ const BASE_POLYS = {
   "28-5":  [[55, 0], [65, 0], [65, 15], [55, 15]],
   "28-4":  [[65, 0], [75, 0], [75, 15], [65, 15]],
   "28-3":  [[75, 0], [86, 0], [86, 15], [75, 15]],
+
+  // Right Edge
   "28-2":  [[86, 0], [100, 0], [100, 26], [86, 26]],
   "28-1":  [[86, 26], [100, 26], [100, 45], [86, 45]],
   "28":    [[86, 45], [100, 45], [100, 60], [86, 60]],
+
+  // Row 2
   "28-10": [[0, 15], [14, 15], [14, 26], [0, 26]],
   "28-11": [[14, 15], [28, 15], [28, 26], [14, 26]],
   "28-12": [[28, 15], [40, 15], [40, 26], [28, 26]],
@@ -167,13 +171,19 @@ const BASE_POLYS = {
   "28-14": [[50, 15], [60, 15], [60, 26], [50, 26]],
   "28-35": [[60, 15], [70, 15], [70, 26], [60, 26]],
   "28-15": [[70, 15], [86, 15], [86, 26], [70, 26]],
+
+  // Central Road 28-29
   "28-29": [[0, 26], [86, 26], [86, 30], [76, 30], [76, 60], [70, 60], [70, 30], [0, 30]],
+
+  // Row 3
   "28-23": [[0, 30], [14, 30], [14, 45], [0, 45]],
   "28-21": [[14, 30], [28, 30], [28, 45], [14, 45]],
   "28-32": [[28, 30], [42, 30], [42, 45], [28, 45]],
   "28-19": [[42, 30], [56, 30], [56, 45], [42, 45]],
   "28-18": [[56, 30], [70, 30], [70, 45], [56, 45]],
   "28-34": [[76, 30], [86, 30], [86, 60], [76, 60]],
+
+  // Bottom Row
   "28-24": [[0, 45], [22, 45], [22, 60], [0, 60]],
   "28-26": [[22, 45], [32, 45], [32, 60], [22, 60]],
   "28-27": [[32, 45], [42, 45], [42, 60], [32, 60]],
@@ -182,10 +192,15 @@ const BASE_POLYS = {
   "28-17": [[61, 45], [70, 45], [70, 60], [61, 60]]
 };
 
-const MANUAL_CENTERS = { "28-29": [35, 28] };
+const MANUAL_CENTERS = {
+  "28-29": [35, 28],
+};
+
 const BASE_RED_BOUNDARY = [[15, 0], [100, 0], [100, 60], [0, 60], [0, 15], [15, 15], [15, 0]];
+
 const OWNER_LOTS = {1:["28"],2:["28-1","28-34"],3:["28-1"],4:["28-1"],5:["28-1"],6:["28-1"],7:["28-1"],8:["28-1"],9:["28-1"],10:["28-1"],11:["28-2"],12:["28-2"],13:["28-2"],14:["28-2"],15:["28-2"],16:["28-2"],17:["28-2"],18:["28-2"],19:["28-2"],20:["28-3"],21:["28-3"],22:["28-3"],23:["28-3"],24:["28-3"],25:["28-3"],26:["28-3"],27:["28-3"],28:["28-4"],29:["28-5"],30:["28-5"],31:["28-5"],32:["28-5"],33:["28-5"],34:["28-5"],35:["28-5"],36:["28-5"],37:["28-6"],38:["28-6"],39:["28-6"],40:["28-6"],41:["28-6"],42:["28-6"],43:["28-6"],44:["28-6"],45:["28-6"],46:["28-6"],47:["28-6"],48:["28-7"],49:["28-8"],50:["28-10"],51:["28-11"],52:["28-11"],53:["28-11"],54:["28-11"],55:["28-11"],56:["28-11"],57:["28-11"],58:["28-11"],59:["28-12"],60:["28-13"],61:["28-14"],62:["28-15"],63:["28-15"],64:["28-15"],65:["28-15"],66:["28-15"],67:["28-15"],68:["28-15"],69:["28-15"],70:["28-15"],71:["28-17"],72:["28-18"],73:["28-19"],74:["28-21"],75:["28-21"],76:["28-21"],77:["28-21"],78:["28-21"],79:["28-21"],80:["28-21"],81:["28-21"],82:["28-21"],83:["28-21"],84:["28-21"],85:["28-21"],86:["28-23"],87:["28-24"],88:["28-26"],89:["28-27"],90:["28-28"],91:["28-29"],92:["28-31"],93:["28-32"],94:["28-32"],95:["28-32"],96:["28-32"],97:["28-32"],98:["28-32"],99:["28-35"],100:["28-36"]};
 
+// ─── Authorized Users List ───
 const AUTHORIZED_USERS = [
   { id: "u1", name: "최희현", role: "부회장", pin: "1001" },
   { id: "u2", name: "최광식", role: "부사장", pin: "1002" },
@@ -200,35 +215,64 @@ function LoginScreen({ onLogin }) {
   const [userId, setUserId] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!userId) { setErr("접속할 담당자를 선택해주세요."); return; }
+    if (!userId) {
+      setErr("접속할 담당자를 선택해주세요.");
+      return;
+    }
+    
     const user = AUTHORIZED_USERS.find(u => u.id === userId);
-    if (pwd !== user.pin) { setErr("비밀번호가 일치하지 않습니다."); return; }
+    if (pwd !== user.pin) {
+      setErr("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+    
     onLogin(user.role === "담당" ? user.name : `${user.name} ${user.role}`);
   };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0C0C0E", color: "#E8E6E1", fontFamily: "'Pretendard', sans-serif" }}>
       <div style={{ background: "#161618", padding: "32px 24px", borderRadius: 16, width: "90%", maxWidth: 360, border: "1px solid #2A2A2E", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, textAlign: "center", marginBottom: 6 }}>가로주택정비사업</h1>
         <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", marginBottom: 24 }}>현장지원 시스템 보안 로그인</p>
+        
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <select value={userId} onChange={(e) => setUserId(e.target.value)} style={{ width: "100%", padding: "14px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: userId ? "#fff" : "#9CA3AF", fontSize: 15, outline: "none", appearance: "none" }}>
-            <option value="" disabled>담당자 선택</option>
-            {AUTHORIZED_USERS.map(u => <option key={u.id} value={u.id}>{u.name} {u.role}</option>)}
-          </select>
-          <input type="password" placeholder="접속 비밀번호 (PIN)" value={pwd} onChange={(e) => setPwd(e.target.value)} style={{ padding: "14px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#fff", fontSize: 15, outline: "none", letterSpacing: 2 }} />
-          {err && <p style={{ color: "#FF2A55", fontSize: 12, fontWeight: 700 }}>{err}</p>}
-          <button type="submit" className="btn-press" style={{ marginTop: 12, padding: "16px", background: "linear-gradient(135deg, #FF2A55, #C81A40)", color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>시스템 접속</button>
+          <div style={{ position: "relative" }}>
+            <select
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              style={{ width: "100%", padding: "14px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: userId ? "#fff" : "#9CA3AF", fontSize: 15, outline: "none", appearance: "none" }}
+            >
+              <option value="" disabled>담당자 선택</option>
+              {AUTHORIZED_USERS.map(u => (
+                <option key={u.id} value={u.id}>{u.name} {u.role}</option>
+              ))}
+            </select>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <input
+            type="password"
+            placeholder="접속 비밀번호 (PIN)"
+            value={pwd}
+            onChange={(e) => setPwd(e.target.value)}
+            style={{ padding: "14px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#fff", fontSize: 15, outline: "none", letterSpacing: 2 }}
+          />
+          {err && <p style={{ color: "#FF2A55", fontSize: 12, fontWeight: 700, margin: "4px 0" }}>{err}</p>}
+          <button type="submit" className="btn-press" style={{ marginTop: 12, padding: "16px", background: "linear-gradient(135deg, #FF2A55, #C81A40)", color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
+            시스템 접속
+          </button>
         </form>
       </div>
     </div>
   );
 }
 
-// ─── 메인 App 컴포넌트 ───
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null); 
   const [owners, setOwners] = useState([]);
   const [view, setView] = useState("dash"); 
   const [selectedId, setSelectedId] = useState(null);
@@ -237,23 +281,29 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [catTab, setCatTab] = useState("공동주택");
 
-  // 파이어베이스 데이터 실시간 리스너 연결
+  // 파이어베이스 실시간 데이터 가져오기
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "owners"), (snapshot) => {
-      const ownerData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const ownerData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: Number(doc.id) // ID를 숫자로 변환
+      }));
+      
       if (ownerData.length === 0) {
         setOwners(RAW_OWNERS.map(o => ({ ...o, memoHistory: [], disposition: "", agreedBy: "" })));
       } else {
         setOwners(ownerData.sort((a, b) => Number(a.sn) - Number(b.sn)));
       }
     });
+
     return () => unsubscribe();
   }, []);
 
-  // 데이터 수정 시 파이어베이스 서버에 즉시 저장
+  // 데이터 수정 시 파이어베이스에 즉시 반영
   const updateOwner = useCallback(async (id, updates) => {
     try {
       setOwners(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+      
       const ownerRef = doc(db, "owners", String(id));
       await updateDoc(ownerRef, updates);
     } catch (error) {
@@ -261,9 +311,9 @@ export default function App() {
     }
   }, []);
 
-  // 서버에 기초 데이터를 처음 한 번만 밀어넣는 함수
+  // 초기 100명 데이터 동기화
   const syncInitialData = async () => {
-    if (!window.confirm("100명의 기초 데이터를 서버에 등록하시겠습니까?")) return;
+    if (!window.confirm("데이터베이스 초기화를 진행할까요?")) return;
     try {
       const batch = writeBatch(db);
       RAW_OWNERS.forEach(o => {
@@ -271,7 +321,7 @@ export default function App() {
         batch.set(docRef, { ...o, memoHistory: [], disposition: "", agreedBy: "" });
       });
       await batch.commit();
-      alert("동기화 성공!");
+      alert("서버 동기화 성공!");
     } catch (e) {
       console.error(e);
       alert("동기화 실패");
@@ -299,82 +349,214 @@ export default function App() {
   const remainingArea = Math.max(0, (stats.totalArea * targetArea / 100) - stats.agreedArea);
 
   useEffect(() => {
-    const handleResize = () => { if (window.innerWidth >= 800 && view === "map") setView("dash"); };
+    const handleResize = () => {
+      if (window.innerWidth >= 800 && view === "map") {
+        setView("dash");
+      }
+    };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [view]);
 
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
+  const handleSelectLot = useCallback((id) => {
+    if (view === "list") {
+      setScrollPos(window.scrollY);
+    }
+    setSelectedId(id);
+  }, [view]);
+
+  const handleBack = useCallback(() => {
+    setSelectedId(null);
+    if (view === "list") {
+      setTimeout(() => {
+        window.scrollTo(0, scrollPos);
+      }, 0);
+    }
+  }, [scrollPos, view]);
+
+
+  if (!currentUser) {
+    return <LoginScreen onLogin={setCurrentUser} />;
+  }
 
   const selected = selectedId != null ? owners.find(o => o.id === selectedId) : null;
 
   return (
-    <div className="app-wrapper">
+    <>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { display: none; }
-        body { background: #0C0C0E; font-family: 'Pretendard', sans-serif; margin: 0; overflow: hidden; }
-        .app-wrapper { display: flex; width: 100vw; height: 100vh; overflow: hidden; }
-        .left-pane { width: 100%; max-width: 480px; height: 100vh; display: flex; flex-direction: column; position: relative; background: #0C0C0E; z-index: 10; margin: 0 auto; border-right: 1px solid #1E1E22; }
-        .right-pane { display: none; flex: 1; height: 100vh; background: #0a0a0a; border-left: 1px solid #1E1E22; padding: 24px; flex-direction: column; }
-        @media (min-width: 800px) { .right-pane { display: flex; } }
-        .btn-press { transition: transform 0.1s; } .btn-press:active { transform: scale(0.96); }
-        .mobile-map-inner { height: 480px; border-radius: 16px; overflow: hidden; border: 1px solid #2A2A2E; position: relative; background: #0a0a0a; }
+        body { background: #0C0C0E; margin: 0; font-family: 'Pretendard', sans-serif;}
+        input, select, textarea { font-family: inherit; }
+        
+        input[type="number"] {
+          -moz-appearance: textfield;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: inner-spin-button !important;
+          opacity: 1 !important;
+          display: inline-block !important;
+          cursor: pointer;
+          transform: scale(0.8);
+          transform-origin: right center;
+        }
+
+        .popup-list::-webkit-scrollbar {
+          display: block;
+          width: 4px;
+        }
+        .popup-list::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 4px;
+        }
+
+        .app-wrapper {
+          display: flex;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+        }
+        .left-pane {
+          width: 100%;
+          max-width: 480px;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          background: #0C0C0E;
+          z-index: 10;
+          margin: 0 auto;
+        }
+        .right-pane {
+          display: none;
+          flex: 1;
+          height: 100vh;
+          background: #0a0a0a;
+          border-left: 1px solid #1E1E22;
+          padding: 24px;
+          flex-direction: column;
+        }
+        .desktop-map-inner {
+          flex: 1;
+          border-radius: 20px;
+          overflow: hidden;
+          border: 1px solid #2A2A2E;
+          position: relative;
+          background: #0a0a0a;
+        }
+        .mobile-map-inner {
+          height: 480px;
+          border-radius: 16px;
+          overflow: hidden;
+          border: 1px solid #2A2A2E;
+          position: relative;
+          background: #0a0a0a;
+        }
+        
+        @media (min-width: 800px) {
+          .left-pane {
+            margin: 0;
+            box-shadow: 5px 0 20px rgba(0,0,0,0.5);
+          }
+          .right-pane {
+            display: flex;
+          }
+          .mobile-only-map {
+            display: none !important;
+          }
+          .nav-btn-map {
+            display: none !important;
+          }
+        }
+
+        /* 버튼 및 카드 클릭 애니메이션 (Active Effect) */
+        .btn-press {
+          transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.1s;
+        }
+        .btn-press:active {
+          transform: scale(0.96);
+          background-color: #1E1E22 !important;
+        }
       `}</style>
       
-      <div className="left-pane">
-        {selected ? (
-          <DetailView key={selected.id} owner={selected} onBack={() => setSelectedId(null)} updateOwner={updateOwner} currentUser={currentUser} />
-        ) : (
-          <>
-            <header style={{ padding: "16px 20px 12px", background: "linear-gradient(180deg, #0C0C0E 0%, transparent 100%)", position: "sticky", top: 0, zIndex: 50 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: 2 }}>송파구 문정동 28번지</p>
-                  <h1 style={{ fontSize: 20, fontWeight: 800, color: "#E8E6E1", marginTop: 2 }}>가로주택정비사업</h1>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {/* 동기화 버튼 (구석에 숨김) */}
-                  <button onClick={syncInitialData} style={{ opacity: 0.1, fontSize: 8, color: "#fff", background: "none", border: "1px solid #fff", borderRadius: 4, padding: "2px 4px", cursor: 'pointer' }}>SYNC</button>
-                  <div style={{ textAlign: "right" }}>
-                    <p style={{ fontSize: 11, color: "#E8E6E1", fontWeight: 700 }}>{currentUser}</p>
-                    <button onClick={() => setCurrentUser(null)} style={{ background: "rgba(255, 42, 85, 0.1)", border: "none", color: "#FF2A55", borderRadius: 6, padding: "2px 6px", fontSize: 9, fontWeight: 700 }}>로그아웃</button>
+      <div className="app-wrapper">
+        <div className="left-pane">
+          {selected ? (
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              <DetailView key={selected.id} owner={selected} onBack={handleBack} updateOwner={updateOwner} currentUser={currentUser} />
+            </div>
+          ) : (
+            <>
+              <header style={{ padding: "16px 20px 12px", background: "linear-gradient(180deg, #0C0C0E 0%, transparent 100%)", position: "sticky", top: 0, zIndex: 50 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>송파구 문정동 28번지</p>
+                    <h1 style={{ fontSize: 20, fontWeight: 800, color: "#E8E6E1", marginTop: 2 }}>가로주택정비사업</h1>
                   </div>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #FF2A55, #C81A40)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#fff" }}>{stats.agreed}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                      <span style={{ fontSize: 11, color: "#E8E6E1", fontWeight: 700 }}>{currentUser}</span>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={syncInitialData} className="btn-press" style={{ background: "rgba(255, 255, 255, 0.1)", border: "1px solid rgba(255, 255, 255, 0.3)", color: "#FFF", borderRadius: 6, padding: "3px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>
+                          SYNC
+                        </button>
+                        <button onClick={() => setCurrentUser(null)} className="btn-press" style={{ background: "rgba(255, 42, 85, 0.1)", border: "1px solid rgba(255, 42, 85, 0.3)", color: "#FF2A55", borderRadius: 6, padding: "3px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}>
+                          <IconLock size={10} /> 잠금
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #FF2A55, #C81A40)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", boxShadow: "0 4px 12px rgba(255, 42, 85, 0.3)" }}>
+                      {stats.agreed}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </header>
+              </header>
 
-            <main style={{ flex: 1, overflowY: "auto", padding: "0 16px 100px" }}>
-              {view === "dash" && <Dashboard stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} />}
-              {view === "cat" && <CategoryView stats={stats} catTab={catTab} setCatTab={setCatTab} />}
-              {view === "map" && <div className="mobile-only-map"><InteractiveSvgMap owners={owners} onSelect={setSelectedId} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={false} /></div>}
-              {view === "list" && <ListView owners={owners} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} onSelect={setSelectedId} stats={stats} />}
-            </main>
+              <main style={{ flex: 1, overflowY: "auto", padding: "0 16px 100px" }}>
+                {view === "dash" && <Dashboard stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} />}
+                {view === "cat" && <CategoryView stats={stats} catTab={catTab} setCatTab={setCatTab} />}
+                {view === "map" && <div className="mobile-only-map"><InteractiveSvgMap owners={owners} onSelect={handleSelectLot} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={false} /></div>}
+                {view === "list" && <ListView owners={owners} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} onSelect={handleSelectLot} stats={stats} />}
+              </main>
 
-            <nav style={{ position: "absolute", bottom: 0, width: "100%", background: "rgba(12,12,14,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid #1E1E22", display: "flex", justifyContent: "space-around", padding: "8px 0 max(8px, env(safe-area-inset-bottom))", zIndex: 50 }}>
-              <button onClick={() => setView("dash")} style={{ background: "none", border: "none", color: view === "dash" ? "#FF2A55" : "#9CA3AF", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><IconHome size={22} /><span style={{ fontSize: 10, fontWeight: 700 }}>대시보드</span></button>
-              <button onClick={() => setView("map")} style={{ background: "none", border: "none", color: view === "map" ? "#FF2A55" : "#9CA3AF", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><IconMap size={22} /><span style={{ fontSize: 10, fontWeight: 700 }}>지적도</span></button>
-              <button onClick={() => setView("cat")} style={{ background: "none", border: "none", color: view === "cat" ? "#FF2A55" : "#9CA3AF", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><IconChart size={22} /><span style={{ fontSize: 10, fontWeight: 700 }}>용도별</span></button>
-              <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: view === "list" ? "#FF2A55" : "#9CA3AF", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><IconUsers size={22} /><span style={{ fontSize: 10, fontWeight: 700 }}>소유자</span></button>
-            </nav>
-          </>
-        )}
+              <nav style={{ position: "absolute", bottom: 0, width: "100%", background: "rgba(12,12,14,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid #1E1E22", display: "flex", justifyContent: "space-around", padding: "8px 0 max(8px, env(safe-area-inset-bottom))", zIndex: 50 }}>
+                {[
+                  { key: "dash", icon: IconHome, label: "대시보드" },
+                  { key: "map", icon: IconMap, label: "지적도" },
+                  { key: "cat", icon: IconChart, label: "용도별" },
+                  { key: "list", icon: IconUsers, label: "소유자" },
+                ].map(t => (
+                  <button key={t.key} className={t.key === 'map' ? 'nav-btn-map' : ''} onClick={() => setView(t.key)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", color: view === t.key ? "#FF2A55" : "#9CA3AF", transition: "color 0.2s", padding: "4px 16px" }}>
+                    <t.icon size={22} />
+                    <span style={{ fontSize: 10, fontWeight: 700 }}>{t.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </>
+          )}
+        </div>
+        
+        <div className="right-pane">
+          <InteractiveSvgMap owners={owners} onSelect={handleSelectLot} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={true} initialScale={0.8} />
+        </div>
       </div>
-
-      <div className="right-pane">
-        <InteractiveSvgMap owners={owners} onSelect={setSelectedId} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={true} initialScale={0.8} />
-      </div>
-    </div>
+    </>
   );
 }
 
-// ─── 지적도 매핑 컴포넌트 ─── [cite: 89-181]
 function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, isDesktop = false, initialScale = 0.45 }) {
+  const containerRef = useRef(null);
+  
   const [panZoom, setPanZoom] = useState({ x: 0, y: 0, scale: initialScale });
   const [selectedLot, setSelectedLot] = useState(null);
-  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, initialX: 0, initialY: 0, isMoved: false });
+  const [catFilter, setCatFilter] = useState("전체");
+  const [showIcons, setShowIcons] = useState(true);
+
+  const dragRef = useRef({ 
+    isDragging: false, startX: 0, startY: 0, initialX: 0, initialY: 0, pinchDist: 0, isMoved: false 
+  });
 
   const lotData = useMemo(() => {
     const lots = {};
@@ -382,187 +564,936 @@ function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, i
       const ownersOnLot = owners.filter(o => (OWNER_LOTS[o.sn] || []).includes(jibun));
       const totalCount = ownersOnLot.length;
       const agreedCount = ownersOnLot.filter(o => o.agreed).length;
-      const xSum = p.reduce((s, pt) => s + pt[0], 0) / p.length;
-      const ySum = p.reduce((s, pt) => s + pt[1], 0) / p.length;
-      lots[jibun] = { jibun, center: MANUAL_CENTERS[jibun] || [xSum, ySum], polygon: p, owners: ownersOnLot, totalCount, agreedCount, allAgreed: totalCount > 0 && agreedCount === totalCount, someAgreed: agreedCount > 0 && agreedCount < totalCount, noneAgreed: totalCount > 0 && agreedCount === 0, isEmpty: totalCount === 0 };
+      
+      let calculatedCenter;
+      if (MANUAL_CENTERS[jibun]) {
+        calculatedCenter = MANUAL_CENTERS[jibun];
+      } else {
+        let xSum = 0, ySum = 0;
+        p.forEach(([x, y]) => { xSum += x; ySum += y; });
+        calculatedCenter = [xSum / p.length, ySum / p.length];
+      }
+
+      const counts = {};
+      ownersOnLot.forEach(o => { counts[o.cat] = (counts[o.cat] || 0) + 1; });
+      let primaryCat = "기타";
+      if (Object.keys(counts).length > 0) {
+        primaryCat = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+      }
+
+      lots[jibun] = {
+        jibun, center: calculatedCenter, polygon: p, owners: ownersOnLot,
+        totalCount, agreedCount, primaryCat,
+        allAgreed: totalCount > 0 && agreedCount === totalCount,
+        someAgreed: agreedCount > 0 && agreedCount < totalCount,
+        noneAgreed: totalCount > 0 && agreedCount === 0,
+        isEmpty: totalCount === 0,
+      };
     });
     return lots;
   }, [owners]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const onWheel = (e) => {
+      if (e.target.closest('.map-popup-content')) return;
+      e.preventDefault();
+      setPanZoom(prev => {
+        const delta = e.deltaY * -0.0005; 
+        const newScale = Math.min(Math.max(0.2, prev.scale + delta), 15);
+        return { ...prev, scale: newScale };
+      });
+    };
+
+    const onTouchMove = (e) => {
+      if (e.target.closest('.map-popup-content')) return;
+      e.preventDefault(); 
+    };
+
+    container.addEventListener("wheel", onWheel, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    
+    return () => {
+      container.removeEventListener("wheel", onWheel);
+      container.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
+
   const handlePointerDown = (e) => {
+    if (e.target?.closest && e.target.closest('.map-popup-content')) return;
+    if (e.touches && e.touches.length === 2) {
+      dragRef.current.pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      return;
+    }
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    dragRef.current = { isDragging: true, startX: clientX, startY: clientY, initialX: panZoom.x, initialY: panZoom.y, isMoved: false };
+    
+    dragRef.current = { 
+      ...dragRef.current, isDragging: true, startX: clientX, startY: clientY, initialX: panZoom.x, initialY: panZoom.y, isMoved: false 
+    };
   };
 
   const handlePointerMove = (e) => {
+    if (e.target?.closest && e.target.closest('.map-popup-content')) return;
+    if (e.touches && e.touches.length === 2) {
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      if (dragRef.current.pinchDist) {
+        const delta = (dist - dragRef.current.pinchDist) * 0.002;
+        setPanZoom(prev => ({ ...prev, scale: Math.min(Math.max(0.2, prev.scale + delta), 15) }));
+      }
+      dragRef.current.pinchDist = dist;
+      dragRef.current.isDragging = false; 
+      return;
+    }
+
     if (!dragRef.current.isDragging) return;
+
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const dx = clientX - dragRef.current.startX; const dy = clientY - dragRef.current.startY;
+    const dx = clientX - dragRef.current.startX;
+    const dy = clientY - dragRef.current.startY;
+
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragRef.current.isMoved = true;
     setPanZoom(prev => ({ ...prev, x: dragRef.current.initialX + dx, y: dragRef.current.initialY + dy }));
   };
 
+  const handlePointerUp = () => {
+    dragRef.current.isDragging = false;
+    dragRef.current.pinchDist = 0;
+  };
+
+  const handleLotClick = (lot, e) => {
+    if (dragRef.current.isMoved) return;
+    if (!lot.isEmpty) setSelectedLot(lot);
+
+    if (containerRef.current && e) {
+      const lotRect = e.currentTarget.getBoundingClientRect();
+      const containerRect = containerRef.current.getBoundingClientRect();
+
+      const containerCenterX = containerRect.left + containerRect.width / 2;
+      const containerCenterY = containerRect.top + containerRect.height * 0.65;
+
+      const lotCenterX = lotRect.left + lotRect.width / 2;
+      const lotCenterY = lotRect.top + lotRect.height / 2;
+
+      const deltaX = containerCenterX - lotCenterX;
+      const deltaY = containerCenterY - lotCenterY;
+
+      setPanZoom(prev => ({
+        ...prev,
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+    }
+  };
+
+  const popupVisualScale = Math.min(Math.max(0.65 + 0.35 * panZoom.scale, 0.7), 1.5);
+  const popupTransformScale = popupVisualScale / panZoom.scale;
+
+  const MAP_W = 800;
+  const MAP_H = 480;
+
   return (
-    <div style={{ height: '100%', position: 'relative', overflow: 'hidden', background: '#0a0a0a', borderRadius: 16, border: '1px solid #2A2A2E' }} onMouseDown={handlePointerDown} onMouseMove={handlePointerMove} onMouseUp={() => dragRef.current.isDragging = false} onTouchStart={handlePointerDown} onTouchMove={handlePointerMove} onTouchEnd={() => dragRef.current.isDragging = false}>
-      <svg viewBox="-5 -5 110 70" style={{ width: '100%', height: '100%', transform: `translate(${panZoom.x}px, ${panZoom.y}px) scale(${panZoom.scale})`, transformOrigin: 'center' }}>
-        {Object.values(lotData).map(lot => (
-          <g key={lot.jibun} onClick={() => { if(!dragRef.current.isMoved && !lot.isEmpty) setSelectedLot(lot); }} style={{ cursor: 'pointer' }}>
-            <polygon points={lot.polygon.map(pt => pt.join(',')).join(' ')} fill={lot.isEmpty ? '#111' : lot.allAgreed ? '#22C55E66' : lot.someAgreed ? '#EAB30866' : '#EF444433'} stroke="#4A4A55" strokeWidth="0.2" />
-            <text x={lot.center[0]} y={lot.center[1]} fontSize="2" fill="#fff" textAnchor="middle" fontWeight="bold">{lot.jibun.split('-')[1] || lot.jibun}</text>
-          </g>
-        ))}
-        <polygon points={BASE_RED_BOUNDARY.map(pt => pt.join(',')).join(' ')} fill="none" stroke="#FF2A55" strokeWidth="0.5" strokeDasharray="1,1" />
-      </svg>
-      {selectedLot && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: '#fff', padding: 20, borderRadius: 16, color: '#000', width: 260, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', zIndex: 100 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h3>문정동 {selectedLot.jibun}</h3><button onClick={() => setSelectedLot(null)} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button></div>
-          <div style={{ maxHeight: 250, overflowY: 'auto', marginTop: 12 }}>
-            {selectedLot.owners.map(o => <div key={o.id} onClick={() => { onSelect(o.id); setSelectedLot(null); }} style={{ padding: '10px 0', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><span>{o.nm}</span><span style={{ fontSize: 11, color: o.agreed ? '#22C55E' : '#EF4444' }}>{o.agreed ? '동의' : '미동'}</span></div>)}
-          </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: isDesktop ? 16 : 10, marginTop: isDesktop ? 0 : -8, height: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: isDesktop ? 24 : 20, fontWeight: 800 }}>지적도 기반 매핑 {isDesktop && " (전체 뷰)"}</h2>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+          {["전체", "동의완료", "부분동의", "미동의"].map(f => (
+            <button key={f} className="btn-press" onClick={() => setMapFilter(f)} style={{
+              padding: "6px 12px", borderRadius: 16, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+              background: mapFilter === f ? (f === "동의완료" ? "#22C55E" : f === "미동의" ? "#EF4444" : f === "부분동의" ? "#EAB308" : "#FF2A55") : "#1E1E22",
+              color: mapFilter === f ? (f === "부분동의" ? "#000" : "#fff") : "#9CA3AF",
+            }}>{f}</button>
+          ))}
         </div>
-      )}
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+          {[
+            { id: "전체", label: "모든 용도" },
+            { id: "단독/다가구", label: "🏠 단독" },
+            { id: "공동주택", label: "🏢 공동" },
+            { id: "상가/기타", label: "🏪 기타" }
+          ].map(f => (
+            <button key={f.id} className="btn-press" onClick={() => setCatFilter(f.id)} style={{
+              padding: "5px 12px", borderRadius: 12, border: "1px solid #2A2A2E", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+              background: catFilter === f.id ? "#3B82F6" : "transparent",
+              color: catFilter === f.id ? "#fff" : "#9CA3AF",
+            }}>{f.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div 
+        ref={containerRef}
+        onMouseDown={handlePointerDown} onMouseMove={handlePointerMove} onMouseUp={handlePointerUp} onMouseLeave={handlePointerUp}
+        onTouchStart={handlePointerDown} onTouchMove={handlePointerMove} onTouchEnd={handlePointerUp}
+        className={isDesktop ? "desktop-map-inner" : "mobile-map-inner"}
+      >
+        <div style={{ position: "absolute", bottom: 16, right: 16, display: "flex", flexDirection: "column", background: "#2A2A2E", borderRadius: 8, overflow: "hidden", zIndex: 10, border: "1px solid #3A3A40", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
+          <button className="btn-press" onClick={() => setPanZoom(p => ({ ...p, scale: Math.min(p.scale + 0.5, 15) }))} style={{ background: "none", border: "none", color: "#fff", padding: "8px 14px", fontSize: 18, cursor: "pointer" }}>＋</button>
+          <div style={{ height: 1, background: "#3A3A40" }} />
+          <button className="btn-press" onClick={() => setPanZoom(p => ({ ...p, scale: Math.max(p.scale - 0.5, 0.2) }))} style={{ background: "none", border: "none", color: "#fff", padding: "8px 14px", fontSize: 18, cursor: "pointer" }}>－</button>
+        </div>
+
+        <div style={{ 
+          position: "absolute", top: '-50%', left: '-50%', width: "200%", height: "200%", 
+          background: "repeating-linear-gradient(#222 0 1px, transparent 1px 100%), repeating-linear-gradient(90deg, #222 0 1px, transparent 1px 100%)", 
+          backgroundSize: "50px 50px", opacity: 0.5,
+          transform: `translate(${panZoom.x}px, ${panZoom.y}px) scale(${panZoom.scale})`,
+          transformOrigin: 'center', transition: dragRef.current.isDragging ? 'none' : 'transform 0.25s ease-out' 
+        }} />
+
+        <div style={{
+          position: 'absolute', width: MAP_W, height: MAP_H, top: '50%', left: '50%',
+          marginLeft: -MAP_W/2, marginTop: -MAP_H/2,
+          transform: `translate(${panZoom.x}px, ${panZoom.y}px) scale(${panZoom.scale})`,
+          transformOrigin: 'center center',
+          transition: dragRef.current.isDragging ? 'none' : 'transform 0.25s ease-out'
+        }}>
+          <svg viewBox="-5 -5 110 70" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+            
+            <defs>
+              <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="0.6" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            {Object.values(lotData).map(lot => {
+              const isStatusMatch = mapFilter === "전체" || 
+                                   (mapFilter === "동의완료" && lot.allAgreed) ||
+                                   (mapFilter === "미동의" && lot.noneAgreed && !lot.isEmpty) ||
+                                   (mapFilter === "부분동의" && lot.someAgreed);
+              const isCatMatch = catFilter === "전체" || lot.primaryCat === catFilter;
+              
+              const isHiddenByFilter = !isStatusMatch || !isCatMatch;
+              const isSelected = selectedLot?.jibun === lot.jibun;
+              
+              let fillColor = "#1E1E22"; let fillOpacity = 0.6; let labelColor = "#6b7280"; let badgeColor = "#333";
+              
+              if (lot.isEmpty || isHiddenByFilter) {
+                fillColor = "rgba(255,255,255,0.05)"; fillOpacity = 1; labelColor = "#555"; badgeColor = "#333";
+              } else if (lot.allAgreed) {
+                fillColor = "#22c55e"; fillOpacity = isSelected ? 0.7 : 0.4; labelColor = "#22c55e"; badgeColor = "#16a34a";
+              } else if (lot.someAgreed) {
+                fillColor = "#eab308"; fillOpacity = isSelected ? 0.65 : 0.35; labelColor = "#eab308"; badgeColor = "#ca8a04";
+              } else {
+                fillColor = "#ef4444"; fillOpacity = isSelected ? 0.5 : 0.2; labelColor = "#ef4444"; badgeColor = "#dc2626";
+              }
+
+              const strokeColor = isSelected && !lot.isEmpty && !isHiddenByFilter ? fillColor : (lot.isEmpty || isHiddenByFilter ? "#333" : "#4A4A55");
+              const strokeWidth = isSelected && !lot.isEmpty && !isHiddenByFilter ? "0.6" : "0.2";
+              
+              const showIconNow = !lot.isEmpty && !isHiddenByFilter && showIcons;
+              const iconSize = 4.0;
+              const iconX = lot.center[0] - iconSize / 2;
+              const iconY = lot.center[1] - 2.0; 
+              
+              const textY = showIconNow ? lot.center[1] - 3.5 : lot.center[1] - 0.5;
+              const ratioY = showIconNow ? lot.center[1] + 3.0 : lot.center[1] + 1.5;
+
+              return (
+                <g key={lot.jibun} style={{ cursor: lot.isEmpty ? "default" : "pointer" }} onClick={(e) => handleLotClick(lot, e)}>
+                  <polygon
+                    points={lot.polygon.map(p => p.join(",")).join(" ")}
+                    fill={fillColor} fillOpacity={fillOpacity}
+                    stroke={strokeColor} strokeWidth={strokeWidth}
+                    filter={isSelected && !lot.isEmpty && !isHiddenByFilter ? "url(#neon-glow)" : "none"}
+                    style={{ transition: "fill-opacity 0.2s" }}
+                  />
+
+                  {isSelected && !lot.isEmpty && !isHiddenByFilter && (
+                    <polygon points={lot.polygon.map(p => p.join(",")).join(" ")} fill="none" stroke="#ffffff" strokeWidth="0.3" pointerEvents="none" />
+                  )}
+                  
+                  <text 
+                    x={lot.center[0]} y={textY} 
+                    fontSize={showIconNow ? "2.0" : "2.2"} 
+                    fill={lot.isEmpty ? "#666" : (isHiddenByFilter ? "#888" : "#ffffff")} 
+                    fontWeight="800" textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                    style={{ textShadow: lot.isEmpty || isHiddenByFilter ? "none" : "0px 1px 3px rgba(0,0,0,0.9)" }}
+                  >
+                    {lot.jibun.replace("28-", "")}
+                  </text>
+
+                  {showIconNow && (
+                    <g transform={`translate(${iconX}, ${iconY}) scale(${iconSize / 24})`} style={{ pointerEvents: 'none', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.8))' }}>
+                      {lot.primaryCat === "단독/다가구" && (
+                        <>
+                          <rect x="4" y="10" width="16" height="12" rx="1" fill={badgeColor} stroke="#fff" strokeWidth="1.5" />
+                          <polygon points="2,10 12,2 22,10" fill={badgeColor} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
+                        </>
+                      )}
+                      {lot.primaryCat === "공동주택" && (
+                        <>
+                          <rect x="4" y="4" width="16" height="18" rx="2" fill={badgeColor} stroke="#fff" strokeWidth="1.5" />
+                          <rect x="8" y="8" width="3" height="3" fill="#fff" rx="0.5" />
+                          <rect x="13" y="8" width="3" height="3" fill="#fff" rx="0.5" />
+                          <rect x="8" y="14" width="3" height="3" fill="#fff" rx="0.5" />
+                          <rect x="13" y="14" width="3" height="3" fill="#fff" rx="0.5" />
+                        </>
+                      )}
+                      {lot.primaryCat === "상가/기타" && (
+                        <>
+                          <rect x="3" y="10" width="18" height="12" rx="1" fill={badgeColor} stroke="#fff" strokeWidth="1.5" />
+                          <polygon points="2,10 4,4 20,4 22,10" fill={badgeColor} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
+                          <line x1="8" y1="10" x2="8" y2="15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+                          <line x1="16" y1="10" x2="16" y2="15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+                        </>
+                      )}
+                    </g>
+                  )}
+
+                  {lot.isEmpty ? (
+                    <text x={lot.center[0]} y={lot.center[1] + 1.8} fontSize="1.0" fill="#666" fontWeight="700" textAnchor="middle" dominantBaseline="middle" pointerEvents="none">
+                      (자료없음)
+                    </text>
+                  ) : (
+                    <text 
+                      x={lot.center[0]} y={ratioY} 
+                      fontSize={showIconNow ? "1.6" : "1.8"} fill={labelColor} 
+                      fontWeight="800" textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                      style={{ textShadow: isHiddenByFilter ? "none" : "0px 1px 3px rgba(0,0,0,0.9)" }}
+                    >
+                      {lot.agreedCount}/{lot.totalCount}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+
+            <polygon points={BASE_RED_BOUNDARY.map(p => p.join(",")).join(" ")} fill="none" stroke="#FF2A55" strokeWidth="1.5" strokeOpacity="0.25" strokeLinejoin="round" pointerEvents="none" />
+            <polygon points={BASE_RED_BOUNDARY.map(p => p.join(",")).join(" ")} fill="none" stroke="#FF1A45" strokeWidth="0.5" strokeDasharray="1.5, 1.5" strokeLinejoin="round" pointerEvents="none" />
+          </svg>
+
+          {selectedLot && (
+            <div style={{
+              position: "absolute",
+              left: `${((selectedLot.center[0] + 5) / 110) * 100}%`,
+              top: `${((selectedLot.center[1] + 5) / 70) * 100}%`,
+              width: 0, height: 0, zIndex: 100
+            }}>
+              <div 
+                className="map-popup-content"
+                onMouseDown={(e) => e.stopPropagation()} 
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onWheel={(e) => e.stopPropagation()}
+                style={{
+                  position: "absolute", left: "50%",
+                  transform: `translate(-50%, -100%) scale(${popupTransformScale})`,
+                  marginTop: `${-12 * popupTransformScale}px`, 
+                  transformOrigin: "bottom center",
+                  background: "#fff", color: "#111", borderRadius: 16, padding: "16px", width: 230,
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+                  pointerEvents: "auto", cursor: "default",
+                  touchAction: "auto",
+                  overscrollBehavior: "contain"
+                }}
+              >
+                <div style={{ position: "absolute", bottom: "-8px", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "8px solid transparent", borderRight: "8px solid transparent", borderTop: "8px solid #fff" }} />
+                
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>문정동 {selectedLot.jibun}</h3>
+                    <div style={{ display: "inline-block", background: selectedLot.allAgreed ? "#D1FAE5" : "#FFE4E6", color: selectedLot.allAgreed ? "#059669" : "#E11D48", padding: "4px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, marginTop: 6 }}>
+                      동의 {selectedLot.agreedCount}/{selectedLot.totalCount}명
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedLot(null)} className="btn-press" style={{ background: "none", border: "none", fontSize: 18, fontWeight: 700, color: "#9CA3AF", cursor: "pointer", padding: 0 }}>✕</button>
+                </div>
+
+                <ul className="popup-list map-popup-content" style={{ listStyle: "none", padding: "0 4px", margin: "16px -4px 0 -4px", maxHeight: 280, overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain" }}>
+                  {selectedLot.owners.map(o => {
+                    const unit = extractUnit(o.addr, o.cat);
+                    return (
+                      <li key={o.id} onClick={(e) => { e.stopPropagation(); setSelectedLot(null); onSelect(o.id); }} className="btn-press" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: "1px solid #f3f4f6", cursor: "pointer" }}>
+                        <div>
+                          <span style={{ fontSize: 14, fontWeight: 700 }}>{o.nm}</span>
+                          {unit && <span style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6", marginLeft: 6 }}>{unit}</span>}
+                          <span style={{ fontSize: 12, color: "#9CA3AF", marginLeft: 4 }}>#{o.sn}</span>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px", borderRadius: 6, background: o.agreed ? "#D1FAE5" : "#FFE4E6", color: o.agreed ? "#059669" : "#E11D48" }}>
+                          {o.agreed ? "동의" : "미동"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── 대시보드 컴포넌트 ─── [cite: 181-196]
 function Dashboard({ stats, remainingOwner, remainingArea, setView, setFilter, target }) {
+  const ownerData = [{ v: stats.ownerRate }, { v: 100 - stats.ownerRate }];
+  const areaData = [{ v: stats.areaRate }, { v: 100 - stats.areaRate }];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <StatCard label="전체 소유자" value={`${stats.total}명`} sub={`동의 ${stats.agreed}명`} accent="#FF2A55" />
-        <StatCard label="오늘 동의" value={`+${stats.todayCount}건`} sub="실시간 업데이트" accent="#5BA87F" />
+        <StatCard label="오늘 동의" value={`+${stats.todayCount}건`} sub={new Date().toLocaleDateString("ko")} accent="#5BA87F" onClick={() => { setFilter("오늘"); setView("list"); }} />
       </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <DonutCard title="소유자 동의율" percent={stats.ownerRate} target={target.owner} sub={`${stats.agreed}/${stats.total}명`} color="#FF2A55" gradStart="#FF8A00" />
-        <DonutCard title="면적 동의율" percent={stats.areaRate} target={target.area} sub={`${fmtNum(stats.agreedArea)}㎡`} color="#5BA87F" gradStart="#00E676" />
+        <DonutCard 
+          title="소유자 동의율" 
+          percent={stats.ownerRate} 
+          data={ownerData} 
+          target={target.owner} 
+          sub={`${stats.agreed}/${stats.total}명`} 
+          color="#FF2A55" 
+          gradStart="#FF8A00"
+          remainingText={stats.ownerRate >= target.owner ? "달성 완료" : `-${remainingOwner}명`}
+        />
+        <DonutCard 
+          title="면적 동의율" 
+          percent={stats.areaRate} 
+          data={areaData} 
+          target={target.area} 
+          sub={`${fmtNum(stats.agreedArea)}/${fmtNum(stats.totalArea)}㎡`} 
+          color="#5BA87F" 
+          gradStart="#00E676"
+          remainingText={stats.areaRate >= target.area ? "달성 완료" : `-${fmtNum(remainingArea)}㎡`}
+        />
       </div>
+
+      <div style={{ background: "#161618", borderRadius: 16, padding: "20px 16px", border: "1px solid #1E1E22" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>목표 달성까지</p>
+            <p style={{ fontSize: 28, fontWeight: 800, color: "#FF2A55", marginTop: 4 }}>{remainingOwner}<span style={{ fontSize: 14, color: "#9CA3AF" }}>명</span></p>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>소유자 {target.owner}% 요건</p>
+            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginTop: 2 }}>면적 {target.area}% 요건</p>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, height: 6, background: "#2A2A2E", borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${Math.min(100, stats.ownerRate)}%`, background: "linear-gradient(90deg, #FF8A00, #FF2A55)", borderRadius: 3, transition: "width 0.8s ease" }} />
+        </div>
+      </div>
+
       <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: "#9CA3AF", marginBottom: 12 }}>유형별 동의 현황</p>
+        <p style={{ fontSize: 12, fontWeight: 700, color: "#9CA3AF", marginBottom: 12, letterSpacing: 1 }}>용도별 현황</p>
         {["공동주택", "단독/다가구", "상가/기타"].map(c => {
           const d = stats.byCategory[c];
+          const rate = d.total ? (d.agreed / d.total * 100) : 0;
           return (
-            <div key={c} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #1E1E22" }}>
-              <span style={{ color: "#E8E6E1", fontSize: 13 }}>{c} ({d.total}명)</span>
-              <span style={{ color: "#FF2A55", fontWeight: 700 }}>{(d.agreed / (d.total || 1) * 100).toFixed(1)}%</span>
+            <div key={c} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #1E1E22" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: c === "공동주택" ? "#FF2A55" : c === "단독/다가구" ? "#5BA87F" : "#7B8CDE" }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{c}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 12, color: "#9CA3AF" }}>{d.total}명</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#FF2A55" }}>{rate.toFixed(1)}%</span>
+              </div>
             </div>
           );
         })}
       </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <button onClick={() => setView("cat")} className="btn-press" style={{ background: "#161618", border: "1px solid #1E1E22", borderRadius: 14, padding: 16, cursor: "pointer", textAlign: "left", color: "#E8E6E1" }}>
+          <IconChart size={20} className="" />
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#E8E6E1", marginTop: 8 }}>용도별 분석</p>
+        </button>
+        <button onClick={() => setView("list")} className="btn-press" style={{ background: "#161618", border: "1px solid #1E1E22", borderRadius: 14, padding: 16, cursor: "pointer", textAlign: "left", color: "#E8E6E1" }}>
+          <IconUsers size={20} className="" />
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#E8E6E1", marginTop: 8 }}>소유자 명부</p>
+        </button>
+      </div>
     </div>
   );
 }
 
-// ─── 상세 보기 컴포넌트 ─── [cite: 229-281]
+function StatCard({ label, value, sub, accent, onClick }) {
+  return (
+    <div onClick={onClick} className={onClick ? "btn-press" : ""} style={{ background: "#161618", borderRadius: 16, padding: "16px 14px", border: "1px solid #1E1E22", cursor: onClick ? "pointer" : "default" }}>
+      <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: 0.5 }}>{label}</p>
+      <p style={{ fontSize: 24, fontWeight: 800, color: accent, marginTop: 4 }}>{value}</p>
+      <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{sub}</p>
+    </div>
+  );
+}
+
+function DonutCard({ title, percent, data, target, sub, color, gradStart, remainingText }) {
+  const gradId = `grad-${title.replace(/\s/g, '')}`;
+  return (
+    <div style={{ background: "#161618", borderRadius: 16, padding: "16px 10px", border: "1px solid #1E1E22", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 8 }}>{title}</p>
+      <div style={{ position: "relative", width: 110, height: 110 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor={gradStart} />
+                <stop offset="100%" stopColor={color} />
+              </linearGradient>
+            </defs>
+            <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={50} startAngle={90} endAngle={-270} dataKey="v" stroke="none">
+              <Cell fill={`url(#${gradId})`} />
+              <Cell fill="#2A2A2E" />
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", width: "100%" }}>
+          <p style={{ fontSize: 18, fontWeight: 800, color: "#E8E6E1", lineHeight: 1 }}>{percent.toFixed(1)}<span style={{ fontSize: 10 }}>%</span></p>
+          {remainingText && <p style={{ fontSize: 9, color: color, marginTop: 4, fontWeight: 700, background: "rgba(255,255,255,0.05)", padding: "2px 4px", borderRadius: 4, display: "inline-block" }}>{remainingText}</p>}
+        </div>
+      </div>
+      <p style={{ fontSize: 10, color: "#9CA3AF", marginTop: 6 }}>{sub}</p>
+      <p style={{ fontSize: 9, color: "#A1A1AA", marginTop: 2 }}>목표 {target}%</p>
+    </div>
+  );
+}
+
+function CategoryView({ stats, catTab, setCatTab }) {
+  const cats = ["공동주택", "단독/다가구", "상가/기타"];
+  const colors = { "공동주택": "#FF2A55", "단독/다가구": "#5BA87F", "상가/기타": "#7B8CDE" };
+  const d = stats.byCategory[catTab];
+  const rate = d.total ? (d.agreed / d.total * 100) : 0;
+  const areaRate = d.totalArea ? (d.agreedArea / d.totalArea * 100) : 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>용도별 동의 현황</h2>
+      <p style={{ fontSize: 12, color: "#9CA3AF" }}>토지조서 기반 실시간 분석</p>
+
+      <div style={{ display: "flex", background: "#161618", borderRadius: 12, padding: 3, border: "1px solid #1E1E22" }}>
+        {cats.map(c => (
+          <button key={c} onClick={() => setCatTab(c)} className="btn-press" style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, background: catTab === c ? "#2A2A2E" : "transparent", color: catTab === c ? colors[c] : "#9CA3AF", transition: "all 0.2s" }}>{c}</button>
+        ))}
+      </div>
+
+      <div style={{ background: "#161618", borderRadius: 16, padding: 20, border: "1px solid #1E1E22" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
+          <div>
+            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>소유자 동의율</p>
+            <p style={{ fontSize: 32, fontWeight: 800, color: colors[catTab] }}>{rate.toFixed(1)}%</p>
+          </div>
+          <p style={{ fontSize: 12, color: "#9CA3AF" }}>{d.agreed} / {d.total}명</p>
+        </div>
+        <ProgressBar value={rate} color={colors[catTab]} />
+
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #1E1E22" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
+            <div>
+              <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>면적 동의율</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: "#E8E6E1" }}>{areaRate.toFixed(1)}%</p>
+            </div>
+            <p style={{ fontSize: 11, color: "#9CA3AF" }}>{fmtNum(d.agreedArea)} / {fmtNum(d.totalArea)}㎡</p>
+          </div>
+          <ProgressBar value={areaRate} color="#9CA3AF" />
+        </div>
+      </div>
+
+      <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: "#9CA3AF", marginBottom: 12 }}>유형별 비교</p>
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr 1fr", gap: "8px 12px", fontSize: 11, fontWeight: 600 }}>
+          <span style={{ color: "#9CA3AF" }}>구분</span>
+          <span style={{ color: "#9CA3AF", textAlign: "right" }}>소유자</span>
+          <span style={{ color: "#9CA3AF", textAlign: "right" }}>면적</span>
+          <span style={{ color: "#9CA3AF", textAlign: "right" }}>동의율</span>
+          {cats.map(c => {
+            const dd = stats.byCategory[c];
+            const r = dd.total ? (dd.agreed / dd.total * 100).toFixed(1) : "0.0";
+            return [
+              <span key={c + "n"} style={{ color: colors[c], fontWeight: 700 }}>{c}</span>,
+              <span key={c + "o"} style={{ textAlign: "right", color: "#E8E6E1" }}>{dd.total}명</span>,
+              <span key={c + "a"} style={{ textAlign: "right", color: "#A1A1AA" }}>{fmtNum(dd.totalArea)}㎡</span>,
+              <span key={c + "r"} style={{ textAlign: "right", color: colors[c], fontWeight: 700 }}>{r}%</span>,
+            ];
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProgressBar({ value, color }) {
+  return (
+    <div style={{ height: 6, background: "#2A2A2E", borderRadius: 3, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${Math.min(100, value)}%`, background: color, borderRadius: 3, transition: "width 0.6s ease" }} />
+    </div>
+  );
+}
+
+function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stats }) {
+  const today = new Date().toISOString().split("T")[0];
+  const filtered = useMemo(() => {
+    return owners.filter(o => {
+      const matchSearch = !search || o.nm.includes(search) || o.addr.includes(search) || String(o.sn) === search;
+      if (!matchSearch) return false;
+      if (filter === "전체") return true;
+      if (filter === "오늘") return o.consentDate === today;
+      if (filter === "동의완료") return o.agreed;
+      if (filter === "미동의") return !o.agreed;
+      return true;
+    });
+  }, [owners, filter, search, today]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <h2 style={{ fontSize: 20, fontWeight: 800 }}>소유자 명부</h2>
+
+      <div style={{ position: "relative" }}>
+        <IconSearch size={18} className="" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="이름, 지번, 연번 검색" style={{ width: "100%", padding: "12px 12px 12px 40px", background: "#161618", border: "1px solid #1E1E22", borderRadius: 12, color: "#E8E6E1", fontSize: 13, outline: "none" }} />
+        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, overflow: "auto" }}>
+        {["전체", "미동의", "동의완료", "오늘"].map(f => (
+          <button key={f} onClick={() => setFilter(f)} className="btn-press" style={{ padding: "8px 16px", borderRadius: 20, border: filter === f ? "none" : "1px solid #2A2A2E", background: filter === f ? "#FF2A55" : "transparent", color: filter === f ? "#fff" : "#9CA3AF", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{f}</button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <MiniStat label="전체" value={`${stats.total}명`} />
+        <MiniStat label="동의" value={`${stats.agreed}명`} accent />
+        <MiniStat label="미동의" value={`${stats.total - stats.agreed}명`} />
+      </div>
+
+      <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>검색결과 {filtered.length}명</p>
+      
+      {filtered.map(o => {
+        const unit = extractUnit(o.addr, o.cat);
+        return (
+          <div key={o.id} onClick={() => onSelect(o.id)} className="btn-press" style={{ background: "#161618", borderRadius: 14, padding: "14px 16px", border: "1px solid #1E1E22", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#E8E6E1" }}>{o.nm}</span>
+                {unit && <span style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6" }}>{unit}</span>}
+                <span style={{ fontSize: 10, color: "#A1A1AA", fontWeight: 600 }}>#{o.sn}</span>
+              </div>
+              <p style={{ fontSize: 11, color: "#9CA3AF", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.addr}</p>
+              <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "#A1A1AA" }}>
+                <span>{o.tp}</span>
+                <span>{o.area}㎡</span>
+                {o.residing && <span style={{ color: "#5BA87F" }}>거주중</span>}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, marginLeft: 12 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: o.agreed ? "rgba(34, 197, 94, 0.2)" : "#2A2A2E", color: o.agreed ? "#22C55E" : "#9CA3AF" }}>{o.agreed ? "동의완료" : "미동의"}</span>
+              {o.memoHistory && o.memoHistory.length > 0 && <span style={{ fontSize: 9, color: "#7B8CDE" }}>메모 {o.memoHistory.length}건</span>}
+            </div>
+          </div>
+        );
+      })}
+      {filtered.length === 0 && <p style={{ textAlign: "center", color: "#9CA3AF", padding: 40, fontSize: 13 }}>검색 결과가 없습니다</p>}
+    </div>
+  );
+}
+
+function MiniStat({ label, value, accent }) {
+  return (
+    <div style={{ flex: 1, background: "#161618", borderRadius: 10, padding: "10px 12px", border: "1px solid #1E1E22" }}>
+      <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700 }}>{label}</p>
+      <p style={{ fontSize: 16, fontWeight: 800, color: accent ? "#FF2A55" : "#E8E6E1", marginTop: 2 }}>{value}</p>
+    </div>
+  );
+}
+
 function DetailView({ owner, onBack, updateOwner, currentUser }) {
+  const [assetStr, setAssetStr] = useState(String(owner.asset));
+  const [ratio, setRatio] = useState(RATIO);
+  const [marketPP, setMarketPP] = useState(6000);
+  const [optIdx, setOptIdx] = useState(0);
+  const [disposition, setDisposition] = useState(owner.disposition || "");
   const [newMemo, setNewMemo] = useState("");
-  const [assetStr, setAssetStr] = useState(String(owner.asset || 0));
-  
-  const asset = Number(assetStr.replace(/[^0-9]/g, ""));
-  const rights = Math.floor(asset * (RATIO / 100));
-  const contribution = PRICE_84 - rights;
+
+  const asset = Number(assetStr.replace(/[^0-9]/g, "")) || 0;
+  const rights = Math.floor(asset * ratio / 100);
+
+  const options = useMemo(() => {
+    const prices = { "46": PRICE_46, "59": PRICE_59, "84": PRICE_84 };
+    const areas = { "46": AREA_46, "59": AREA_59, "84": AREA_84 };
+    const combos = [["46", "46"], ["46", "59"], ["59", "59"], ["46", "84"], ["59", "84"]];
+    
+    const affordable = combos.filter(c => asset >= prices[c[0]] + prices[c[1]]);
+
+    let result = [];
+    if (affordable.length > 0) {
+      affordable.slice(-2).reverse().forEach(c => {
+        result.push({
+          label: `${c[0]}타입 + ${c[1]}타입`,
+          price: prices[c[0]] + prices[c[1]],
+          pyeong: areas[c[0]] + areas[c[1]],
+        });
+      });
+    } else {
+      if (asset < PRICE_46) result = [{ label: "46타입", price: PRICE_46, pyeong: AREA_46 }];
+      else if (asset < PRICE_59) result = [{ label: "46타입", price: PRICE_46, pyeong: AREA_46 }, { label: "59타입", price: PRICE_59, pyeong: AREA_59 }];
+      else if (asset < PRICE_84) result = [{ label: "59타입", price: PRICE_59, pyeong: AREA_59 }, { label: "84타입", price: PRICE_84, pyeong: AREA_84 }];
+      else result = [{ label: "84타입", price: PRICE_84, pyeong: AREA_84 }];
+    }
+    return result;
+  }, [asset]);
+
+  const safeIdx = optIdx < options.length ? optIdx : 0;
+  const opt = options[safeIdx];
+  const contribution = opt.price - rights;
+  const marketVal = Math.floor(opt.pyeong * marketPP * 10000);
+  const premium = marketVal - opt.price;
+  const totalGain = marketVal - (asset + Math.max(0, contribution));
+  const gainRate = asset > 0 ? (totalGain / asset * 100).toFixed(1) : "0";
+
+  const toggleAgree = (agreed) => {
+    updateOwner(owner.id, {
+      agreed,
+      consentDate: agreed ? new Date().toISOString().split("T")[0] : null,
+      agreedBy: agreed ? currentUser : "",
+      disposition,
+    });
+  };
+
+  const handleSaveDisposition = (val) => {
+    setDisposition(val);
+    updateOwner(owner.id, { disposition: val });
+  };
 
   const handleAddMemo = () => {
     if (!newMemo.trim()) return;
-    const m = { id: Date.now(), date: new Date().toLocaleString(), author: currentUser, text: newMemo };
-    updateOwner(owner.id, { memoHistory: [...(owner.memoHistory || []), m] });
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    const updatedHistory = [...(owner.memoHistory || []), { id: Date.now(), date: dateStr, author: currentUser, text: newMemo }];
+    updateOwner(owner.id, { memoHistory: updatedHistory });
     setNewMemo("");
   };
 
   return (
-    <div style={{ padding: "20px", color: "#E8E6E1", overflowY: 'auto', height: '100vh', paddingBottom: 100 }}>
-      <button onClick={onBack} style={{ color: "#FF2A55", background: "none", border: "none", marginBottom: 16, cursor: 'pointer' }}>← 뒤로가기</button>
-      <h2 style={{ fontSize: 24, fontWeight: 800 }}>{owner.nm} 소유주</h2>
-      <div style={{ background: "#161618", padding: 20, borderRadius: 16, marginTop: 16, border: "1px solid #1E1E22" }}>
-        <p style={{ color: "#9CA3AF", fontSize: 12 }}>주소: {owner.addr}</p>
-        <p style={{ color: "#9CA3AF", fontSize: 12, marginTop: 4 }}>면적: {owner.area}㎡ / 유형: {owner.tp}</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 20 }}>
-          <button onClick={() => updateOwner(owner.id, { agreed: true, agreedBy: currentUser, consentDate: new Date().toISOString().split('T')[0] })} style={{ padding: 14, borderRadius: 12, border: "none", background: owner.agreed ? "#22C55E" : "#2A2A2E", color: "#fff", fontWeight: 700, cursor: 'pointer' }}>동의 완료</button>
-          <button onClick={() => updateOwner(owner.id, { agreed: false })} style={{ padding: 14, borderRadius: 12, border: "none", background: !owner.agreed ? "#EF4444" : "#2A2A2E", color: "#fff", fontWeight: 700, cursor: 'pointer' }}>미동의</button>
+    <div style={{ width: "100%", fontFamily: "'Pretendard', -apple-system, sans-serif", background: "#0C0C0E", color: "#E8E6E1", minHeight: "100vh", maxWidth: 480, margin: "0 auto" }}>
+      <header style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, background: "#0C0C0E", zIndex: 50, borderBottom: "1px solid #1E1E22" }}>
+        <button onClick={onBack} className="btn-press" style={{ background: "none", border: "none", color: "#E8E6E1", cursor: "pointer", padding: 4 }}>
+          <IconBack size={22} />
+        </button>
+        <div>
+          <h1 style={{ fontSize: 16, fontWeight: 800 }}>{owner.nm}</h1>
+          <p style={{ fontSize: 11, color: "#9CA3AF" }}>연번 #{owner.sn}</p>
         </div>
-      </div>
+      </header>
 
-      <div style={{ background: "#161618", padding: 20, borderRadius: 16, marginTop: 16, border: "1px solid #1E1E22" }}>
-        <h3 style={{ fontSize: 14, marginBottom: 12 }}>분담금 시뮬레이션</h3>
-        <div style={{ marginTop: 12 }}>
-          <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 6 }}>종전자산 가액</p>
-          <div style={{ position: "relative" }}><input value={asset.toLocaleString()} onChange={e => setAssetStr(e.target.value)} style={{ width: "100%", padding: 12, background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#fff", textAlign: "right" }} /><span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: 12 }}>원</span></div>
-        </div>
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #2A2A2E" }}>
-          <ResultRow label="권리가액 (비례율 152.19%)" value={rights.toLocaleString()} sub={fmt(rights)} />
-          <ResultRow label="84타입 추정 분담금" value={contribution.toLocaleString()} sub={fmt(contribution)} accent="#FF2A55" />
-        </div>
-      </div>
+      <div style={{ padding: "12px 16px 40px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <InfoCell label="물건 소재지" value={owner.addr} span />
+            <InfoCell label="자산 유형" value={owner.tp} />
+            <InfoCell label="편입면적" value={`${owner.area}㎡`} />
+            <InfoCell label="거주여부" value={owner.residing ? "거주중" : "비거주"} />
+            <InfoCell label="연령대" value={owner.age || "-"} />
+          </div>
+        </section>
 
-      <div style={{ marginTop: 24 }}>
-        <h3 style={{ fontSize: 14, marginBottom: 12 }}>상담 메모</h3>
-        <textarea value={newMemo} onChange={e => setNewMemo(e.target.value)} placeholder="상담 내용을 기록하세요..." style={{ width: "100%", height: 100, background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 12, color: "#fff", padding: 12 }} />
-        <button onClick={handleAddMemo} style={{ width: "100%", padding: 12, background: "#FF2A55", color: "#fff", border: "none", borderRadius: 12, marginTop: 8, fontWeight: 700, cursor: 'pointer' }}>메모 추가</button>
-        <div style={{ marginTop: 16 }}>
-          {(owner.memoHistory || []).slice().reverse().map(m => (
-            <div key={m.id} style={{ background: "#2A2A2E", padding: 12, borderRadius: 12, marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9CA3AF", marginBottom: 4 }}><span>{m.author}</span><span>{m.date}</span></div>
-              <p style={{ fontSize: 13 }}>{m.text}</p>
+        <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+          <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>조합설립 동의 여부</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <button onClick={() => toggleAgree(true)} className="btn-press" style={{ padding: 14, borderRadius: 12, border: owner.agreed ? "2px solid #5BA87F" : "1px solid #2A2A2E", background: owner.agreed ? "#1A2F1E" : "transparent", color: owner.agreed ? "#5BA87F" : "#9CA3AF", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <span>✓ 동의 완료</span>
+              {owner.agreed && <span style={{ fontSize: 10, color: "#5BA87F", fontWeight: 600 }}>담당: {owner.agreedBy || currentUser}</span>}
+            </button>
+            <button onClick={() => toggleAgree(false)} className="btn-press" style={{ padding: 14, borderRadius: 12, border: !owner.agreed ? "2px solid #E05252" : "1px solid #2A2A2E", background: !owner.agreed ? "#2F1A1A" : "transparent", color: !owner.agreed ? "#E05252" : "#9CA3AF", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              미동의
+            </button>
+          </div>
+        </section>
+
+        <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 3, height: 16, background: "#FF2A55", borderRadius: 2 }} />
+            <p style={{ fontSize: 14, fontWeight: 700 }}>분담금 시뮬레이션</p>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <InputRow label="종전자산 추정가액 (A)" value={Number(assetStr.replace(/[^0-9]/g, "")).toLocaleString()} onChange={e => setAssetStr(e.target.value.replace(/[^0-9]/g, ""))} suffix="원" note={fmt(asset)} />
+            <InputRow label="추정 비례율 (B)" value={ratio} step="0.01" onChange={e => setRatio(Number(e.target.value) || 0)} suffix="%" type="number" />
+          </div>
+
+          <div style={{ marginTop: 16, background: "#1E1E22", borderRadius: 12, padding: 16 }}>
+            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>계산된 권리가액 (C = A × B)</p>
+            <p style={{ fontSize: 24, fontWeight: 800, color: "#FF2A55", marginTop: 4 }}>{fmtNum(rights)}<span style={{ fontSize: 12, color: "#9CA3AF" }}> 원</span></p>
+            <p style={{ fontSize: 11, color: "#A1A1AA", marginTop: 2 }}>약 {fmt(rights)}</p>
+          </div>
+        </section>
+
+        <section style={{ background: "#161618", borderRadius: 16, overflow: "hidden", border: "1px solid #1E1E22" }}>
+          <div style={{ background: "#1A1A1E", padding: "14px 16px" }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#FF2A55" }}>{opt.label}</p>
+            {options.length > 1 && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                {options.map((o, i) => (
+                  <button key={i} onClick={() => setOptIdx(i)} className="btn-press" style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: safeIdx === i ? "#FF2A55" : "#2A2A2E", color: safeIdx === i ? "#fff" : "#9CA3AF" }}>{o.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+            <ResultRow label="조합원 분양가 (D)" value={fmtNum(opt.price)} sub={fmt(opt.price)} note={`${opt.label} 기준`} />
+            <div style={{ height: 1, background: "#1E1E22" }} />
+            <ResultRow label={contribution > 0 ? "추정 분담금 (D-C)" : "추정 환급금 (C-D)"} value={(contribution > 0 ? "" : "-") + fmtNum(Math.abs(contribution))} sub={fmt(contribution)} accent={contribution > 0 ? "#E05252" : "#5BA87F"} />
+            <div style={{ height: 1, background: "#1E1E22" }} />
+            
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>예상 입주 시세 (E)</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: 10, color: "#A1A1AA" }}>평당</span>
+                  <input type="number" step="100" value={marketPP} onChange={e => setMarketPP(Number(e.target.value))} style={{ width: 70, padding: "4px 8px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 6, color: "#E8E6E1", fontSize: 12, textAlign: "right", outline: "none" }} />
+                  <span style={{ fontSize: 10, color: "#A1A1AA" }}>만원</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 20, fontWeight: 800, color: "#E8E6E1" }}>{fmtNum(marketVal)}<span style={{ fontSize: 11, color: "#9CA3AF" }}> 원</span></p>
+              <p style={{ fontSize: 11, color: "#A1A1AA" }}>약 {fmt(marketVal)}</p>
             </div>
-          ))}
-        </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ background: "#1E1E22", borderRadius: 10, padding: 12 }}>
+                <p style={{ fontSize: 10, color: "#5BA87F", fontWeight: 700, marginBottom: 4 }}>프리미엄 수익</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#E8E6E1" }}>{fmt(premium)}</p>
+              </div>
+              <div style={{ background: "#1E1E22", borderRadius: 10, padding: 12 }}>
+                <p style={{ fontSize: 10, color: "#7B8CDE", fontWeight: 700, marginBottom: 4 }}>총 자산상승</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#E8E6E1" }}>{fmt(totalGain)}</p>
+                <p style={{ fontSize: 11, color: "#7B8CDE", fontWeight: 700, marginTop: 2 }}>+{gainRate}%</p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 24, height: 160, padding: "0 16px", background: "#1A1A1E", borderRadius: 12, paddingTop: 16, paddingBottom: 12 }}>
+              <BarCol label="종전가액" value={asset} max={marketVal} color="#9CA3AF" />
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                <p style={{ fontSize: 18, fontWeight: 800, color: "#7B8CDE" }}>+{gainRate}%</p>
+                <p style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{fmt(totalGain)}</p>
+              </div>
+              <BarCol label="예상시세" value={marketVal} max={marketVal} color="#5BA87F" />
+            </div>
+          </div>
+        </section>
+
+        <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <div style={{ width: 3, height: 16, background: "#7B8CDE", borderRadius: 2 }} />
+            <p style={{ fontSize: 14, fontWeight: 700 }}>상담 메모</p>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 6 }}>소유주 성향</p>
+            <div style={{ position: "relative" }}>
+              <select value={disposition} onChange={e => handleSaveDisposition(e.target.value)} style={{ width: "100%", padding: "12px 40px 12px 12px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#E8E6E1", fontSize: 13, outline: "none", appearance: "none" }}>
+                <option value="">특이사항 없음</option>
+                <option value="positive">우호적 (적극참여)</option>
+                <option value="neutral">중립적 (관망)</option>
+                <option value="negative">반대/부정적 (설득필요)</option>
+              </select>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <div>
+            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 6 }}>상담 기록</p>
+            
+            {/* 누적된 메모 히스토리 렌더링 */}
+            {owner.memoHistory && owner.memoHistory.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, maxHeight: 200, overflowY: "auto" }}>
+                {owner.memoHistory.map(m => (
+                  <div key={m.id} style={{ background: "#2A2A2E", padding: "12px", borderRadius: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <p style={{ fontSize: 10, color: "#9CA3AF" }}>{m.date}</p>
+                      <p style={{ fontSize: 10, color: "#7B8CDE", fontWeight: 700 }}>{m.author}</p>
+                    </div>
+                    <p style={{ fontSize: 13, color: "#E8E6E1", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>{m.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 새 메모 입력 및 등록 */}
+            <div style={{ position: "relative" }}>
+              <textarea 
+                value={newMemo} 
+                onChange={e => setNewMemo(e.target.value)} 
+                placeholder="새로운 상담 내용을 입력하세요" 
+                style={{ width: "100%", height: 80, padding: 12, paddingBottom: 40, background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#E8E6E1", fontSize: 13, outline: "none", resize: "none" }} 
+              />
+              <button 
+                onClick={handleAddMemo}
+                className="btn-press"
+                style={{ position: "absolute", right: 8, bottom: 12, background: "#FF2A55", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+              >
+                기록 추가
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <button onClick={onBack} className="btn-press" style={{ width: "100%", padding: 16, borderRadius: 14, border: "none", background: "linear-gradient(135deg, #FF2A55, #C81A40)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+          ← 목록으로 돌아가기
+        </button>
       </div>
     </div>
   );
 }
 
-// ─── 리스트 컴포넌트 ─── [cite: 215-228]
-function ListView({ owners, filter, setFilter, search, setSearch, onSelect }) {
-  const filtered = owners.filter(o => {
-    const match = !search || o.nm.includes(search) || o.addr.includes(search);
-    if (filter === "동의완료") return match && o.agreed;
-    if (filter === "미동의") return match && !o.agreed;
-    return match;
-  });
+function InfoCell({ label, value, span }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="이름 또는 주소로 검색..." style={{ width: "100%", padding: 14, background: "#161618", border: "1px solid #1E1E22", borderRadius: 12, color: "#fff" }} />
-      <div style={{ display: "flex", gap: 6, overflowX: 'auto' }}>
-        {["전체", "미동의", "동의완료"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 16px", borderRadius: 20, border: "none", background: filter === f ? "#FF2A55" : "#1E1E22", color: "#fff", fontSize: 12, cursor: 'pointer' }}>{f}</button>)}
-      </div>
-      {filtered.map(o => (
-        <div key={o.id} onClick={() => onSelect(o.id)} style={{ background: "#161618", padding: 16, borderRadius: 16, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", border: "1px solid #1E1E22" }}>
-          <div><p style={{ fontWeight: 700, color: "#E8E6E1" }}>{o.nm}</p><p style={{ fontSize: 11, color: "#9CA3AF" }}>{o.addr}</p></div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: o.agreed ? "#22C55E" : "#EF4444" }}>{o.agreed ? "동의완료" : "미동의"}</span>
-        </div>
-      ))}
+    <div style={{ gridColumn: span ? "1 / -1" : undefined }}>
+      <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>{label}</p>
+      <p style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{value || "-"}</p>
     </div>
   );
 }
 
-// ─── 기타 서브 컴포넌트 ─── [cite: 196-289]
-function StatCard({ label, value, sub, accent }) { return <div style={{ background: "#161618", padding: 16, borderRadius: 16, border: "1px solid #1E1E22" }}><p style={{ fontSize: 11, color: "#9CA3AF" }}>{label}</p><p style={{ fontSize: 24, fontWeight: 800, color: accent, marginTop: 4 }}>{value}</p><p style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{sub}</p></div>; }
-function DonutCard({ title, percent, sub, color, gradStart }) {
-  const data = [{ v: percent }, { v: 100 - percent }];
+function InputRow({ label, value, onChange, suffix, note, type = "text", step }) {
   return (
-    <div style={{ background: "#161618", padding: 16, borderRadius: 16, border: "1px solid #1E1E22", textAlign: "center" }}>
-      <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 8 }}>{title}</p>
-      <div style={{ height: 100, position: "relative" }}>
-        <ResponsiveContainer><PieChart><Pie data={data} innerRadius={35} outerRadius={45} dataKey="v" stroke="none"><Cell fill={color} /><Cell fill="#2A2A2E" /></Pie></PieChart></ResponsiveContainer>
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}><p style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>{percent.toFixed(1)}%</p></div>
+    <div>
+      <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 6 }}>{label}</p>
+      <div style={{ position: "relative" }}>
+        <input type={type} step={step} value={value} onChange={onChange} style={{ width: "100%", padding: "12px 40px 12px 12px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#E8E6E1", fontSize: 15, fontWeight: 700, textAlign: "right", outline: "none" }} />
+        <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: 12 }}>{suffix}</span>
       </div>
-      <p style={{ fontSize: 10, color: "#9CA3AF", marginTop: 6 }}>{sub}</p>
+      {note && <p style={{ fontSize: 10, color: "#C8956C", textAlign: "right", marginTop: 3 }}>{note}</p>}
     </div>
   );
 }
-function CategoryView({ stats, catTab, setCatTab }) {
-  const d = stats.byCategory[catTab];
+
+function ResultRow({ label, value, sub, note, accent }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: "flex", gap: 10, background: '#161618', padding: 4, borderRadius: 12 }}>{["공동주택", "단독/다가구", "상가/기타"].map(c => <button key={c} onClick={() => setCatTab(c)} style={{ flex: 1, padding: 10, background: catTab === c ? "#2A2A2E" : "none", color: "#fff", border: "none", borderRadius: 8, cursor: 'pointer' }}>{c}</button>)}</div>
-      <div style={{ background: "#161618", padding: 20, borderRadius: 16, border: "1px solid #1E1E22" }}>
-        <h3 style={{ fontSize: 18 }}>{catTab} 동의율: {(d.agreed/d.total*100).toFixed(1)}%</h3>
-        <ProgressBar value={(d.agreed/d.total*100)} color="#FF2A55" />
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div>
+        <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>{label}</p>
+        {note && <p style={{ fontSize: 10, color: "#A1A1AA", marginTop: 2 }}>{note}</p>}
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <p style={{ fontSize: 16, fontWeight: 800, color: accent || "#E8E6E1" }}>{value}<span style={{ fontSize: 11, color: "#9CA3AF" }}> 원</span></p>
+        <p style={{ fontSize: 10, color: "#A1A1AA" }}>약 {sub}</p>
       </div>
     </div>
   );
 }
-function ProgressBar({ value, color }) { return <div style={{ height: 6, background: "#2A2A2E", borderRadius: 3, marginTop: 10, overflow: "hidden" }}><div style={{ height: "100%", width: `${value}%`, background: color }} /></div>; }
-function ResultRow({ label, value, sub, accent }) { return <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}><div><p style={{ fontSize: 11, color: "#9CA3AF" }}>{label}</p></div><div style={{ textAlign: "right" }}><p style={{ fontSize: 16, fontWeight: 800, color: accent || "#E8E6E1" }}>{value}원</p><p style={{ fontSize: 10, color: "#9CA3AF" }}>약 {sub}</p></div></div>; }
+
+function BarCol({ label, value, max, color }) {
+  const h = max > 0 ? Math.max(20, (value / max) * 100) : 20;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: "0 0 50px" }}>
+      <div style={{ width: 36, background: "#2A2A2E", borderRadius: "6px 6px 0 0", height: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
+        <div style={{ height: `${h}%`, background: color, borderRadius: "6px 6px 0 0", transition: "height 0.6s ease", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        </div>
+      </div>
+      <p style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textAlign: "center" }}>{label}</p>
+      <p style={{ fontSize: 9, color, fontWeight: 700 }}>{fmt(value)}</p>
+    </div>
+  );
+}
