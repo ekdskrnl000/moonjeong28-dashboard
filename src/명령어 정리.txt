@@ -1,0 +1,9 @@
+npm run dev
+cmd에서 테스트할때
+
+git add .
+(순서대로)
+git commit -m "파이어베이스 실시간 연동 및 UI 복구 완료" 
+("" 안쪽에 업데이트 된 내용 기재)
+git push origin main
+(깃허브 서버로 발송)

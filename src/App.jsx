@@ -1235,7 +1235,17 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, marginLeft: 12 }}>
               <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: o.agreed ? "rgba(34, 197, 94, 0.2)" : "#2A2A2E", color: o.agreed ? "#22C55E" : "#9CA3AF" }}>{o.agreed ? "동의완료" : "미동의"}</span>
-              {o.memoHistory && o.memoHistory.length > 0 && <span style={{ fontSize: 9, color: "#7B8CDE" }}>메모 {o.memoHistory.length}건</span>}
+              
+              {/* 서류 상태 뱃지: 동의 완료자에게만 서류 미비/완비 상태 직관적 표시 */}
+              {o.agreed && (
+                o.idCopy && o.privacyConsent ? (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(59, 130, 246, 0.15)", color: "#3B82F6" }}>📄 서류완비</span>
+                ) : (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(255, 138, 0, 0.15)", color: "#FF8A00" }}>⚠️ 서류미비</span>
+                )
+              )}
+
+              {o.memoHistory && o.memoHistory.length > 0 && <span style={{ fontSize: 9, color: "#7B8CDE", marginTop: 1 }}>메모 {o.memoHistory.length}건</span>}
             </div>
           </div>
         );
