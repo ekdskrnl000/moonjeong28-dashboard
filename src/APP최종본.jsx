@@ -583,27 +583,9 @@ function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, i
         primaryCat = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
       }
 
-      // 주소에서 건물명 추출 및 가공
-      let displayName = jibun.replace("28-", ""); 
-      if (ownersOnLot.length > 0 && ownersOnLot[0].addr) {
-        const addrParts = ownersOnLot[0].addr.split(" ");
-        if (addrParts.length >= 3) {
-          let bldg = addrParts[2];
-          if (!bldg.includes("호") && bldg !== "외" && isNaN(bldg[0])) {
-            bldg = bldg.replace(/빌라|빌/g, "");
-            if (bldg.startsWith("다세대")) {
-              displayName = jibun + "다세대"; 
-            } else {
-              displayName = bldg; 
-            }
-          }
-        }
-      }
-
       lots[jibun] = {
         jibun, center: calculatedCenter, polygon: p, owners: ownersOnLot,
         totalCount, agreedCount, primaryCat,
-        displayName,
         allAgreed: totalCount > 0 && agreedCount === totalCount,
         someAgreed: agreedCount > 0 && agreedCount < totalCount,
         noneAgreed: totalCount > 0 && agreedCount === 0,
@@ -830,38 +812,15 @@ function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, i
                     <polygon points={lot.polygon.map(p => p.join(",")).join(" ")} fill="none" stroke="#ffffff" strokeWidth="0.3" pointerEvents="none" />
                   )}
                   
-                  {lot.displayName !== lot.jibun.replace("28-", "") ? (
-                    <>
-                      <text 
-                        x={lot.center[0]} y={textY - 1.6} 
-                        fontSize="1.1" 
-                        fill={isHiddenByFilter ? "#888" : "#60A5FA"} 
-                        fontWeight="800" textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                        style={{ textShadow: isHiddenByFilter ? "none" : "0px 1px 2px rgba(0,0,0,0.9)" }}
-                      >
-                        {lot.displayName}
-                      </text>
-                      <text 
-                        x={lot.center[0]} y={textY + 0.4} 
-                        fontSize={showIconNow ? "1.4" : "1.6"} 
-                        fill={isHiddenByFilter ? "#888" : "#ffffff"} 
-                        fontWeight="800" textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                        style={{ textShadow: isHiddenByFilter ? "none" : "0px 1px 3px rgba(0,0,0,0.9)" }}
-                      >
-                        {lot.jibun.replace("28-", "")}
-                      </text>
-                    </>
-                  ) : (
-                    <text 
-                      x={lot.center[0]} y={textY} 
-                      fontSize={showIconNow ? "1.4" : "1.6"} 
-                      fill={lot.isEmpty ? "#666" : (isHiddenByFilter ? "#888" : "#ffffff")} 
-                      fontWeight="800" textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                      style={{ textShadow: lot.isEmpty || isHiddenByFilter ? "none" : "0px 1px 3px rgba(0,0,0,0.9)" }}
-                    >
-                      {lot.jibun.replace("28-", "")}
-                    </text>
-                  )}
+                  <text 
+                    x={lot.center[0]} y={textY} 
+                    fontSize={showIconNow ? "2.0" : "2.2"} 
+                    fill={lot.isEmpty ? "#666" : (isHiddenByFilter ? "#888" : "#ffffff")} 
+                    fontWeight="800" textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                    style={{ textShadow: lot.isEmpty || isHiddenByFilter ? "none" : "0px 1px 3px rgba(0,0,0,0.9)" }}
+                  >
+                    {lot.jibun.replace("28-", "")}
+                  </text>
 
                   {showIconNow && (
                     <g transform={`translate(${iconX}, ${iconY}) scale(${iconSize / 24})`} style={{ pointerEvents: 'none', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.8))' }}>
@@ -942,14 +901,7 @@ function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, i
                 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, display: "flex", alignItems: "center" }}>
-                      문정동 {selectedLot.jibun}
-                      {selectedLot.displayName !== selectedLot.jibun.replace("28-", "") && (
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#3B82F6", marginLeft: 6, background: "rgba(59, 130, 246, 0.1)", padding: "2px 6px", borderRadius: "6px" }}>
-                          {selectedLot.displayName}
-                        </span>
-                      )}
-                    </h3>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>문정동 {selectedLot.jibun}</h3>
                     <div style={{ display: "inline-block", background: selectedLot.allAgreed ? "#D1FAE5" : "#FFE4E6", color: selectedLot.allAgreed ? "#059669" : "#E11D48", padding: "4px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, marginTop: 6 }}>
                       동의 {selectedLot.agreedCount}/{selectedLot.totalCount}명
                     </div>
@@ -982,6 +934,7 @@ function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, i
     </div>
   );
 }
+
 function Dashboard({ stats, remainingOwner, remainingArea, setView, setFilter, target }) {
   const ownerData = [{ v: stats.ownerRate }, { v: 100 - stats.ownerRate }];
   const areaData = [{ v: stats.areaRate }, { v: 100 - stats.areaRate }];
@@ -1307,13 +1260,7 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
     });
   };
 
-  // [추가된 로직] 필수 서류(신분증, 개인정보) O/X 상태 업데이트 함수
-  const toggleDoc = (docType, status) => {
-    updateOwner(owner.id, { [docType]: status });
-  };
-
   const handleSaveDisposition = (val) => {
-// ...
     setDisposition(val);
     updateOwner(owner.id, { disposition: val });
   };
@@ -1351,45 +1298,16 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
           </div>
         </section>
 
-        <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22", display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* 1. 조합설립 동의 여부 */}
-          <div>
-            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>조합설립 동의 여부</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <button onClick={() => toggleAgree(true)} className="btn-press" style={{ padding: 14, borderRadius: 12, border: owner.agreed ? "2px solid #5BA87F" : "1px solid #2A2A2E", background: owner.agreed ? "#1A2F1E" : "transparent", color: owner.agreed ? "#5BA87F" : "#9CA3AF", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <span>✓ 동의 완료</span>
-                {owner.agreed && <span style={{ fontSize: 10, color: "#5BA87F", fontWeight: 600 }}>담당: {owner.agreedBy || currentUser}</span>}
-              </button>
-              <button onClick={() => toggleAgree(false)} className="btn-press" style={{ padding: 14, borderRadius: 12, border: !owner.agreed ? "2px solid #E05252" : "1px solid #2A2A2E", background: !owner.agreed ? "#2F1A1A" : "transparent", color: !owner.agreed ? "#E05252" : "#9CA3AF", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                미동의
-              </button>
-            </div>
-          </div>
-
-          <div style={{ height: 1, background: "#1E1E22" }} />
-
-          {/* 2. 필수 서류 제출 확인 */}
-          <div>
-            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>필수 서류 제출 확인</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1A1A1E", padding: "10px 14px", borderRadius: 10 }}>
-                <span style={{ fontSize: 13, color: "#E8E6E1", fontWeight: 700 }}>신분증 사본</span>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => toggleDoc('idCopy', true)} className="btn-press" style={{ padding: "6px 18px", borderRadius: 8, border: owner.idCopy ? "2px solid #5BA87F" : "1px solid #2A2A2E", background: owner.idCopy ? "rgba(91, 168, 127, 0.15)" : "transparent", color: owner.idCopy ? "#5BA87F" : "#9CA3AF", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>O</button>
-                  <button onClick={() => toggleDoc('idCopy', false)} className="btn-press" style={{ padding: "6px 18px", borderRadius: 8, border: owner.idCopy === false ? "2px solid #E05252" : "1px solid #2A2A2E", background: owner.idCopy === false ? "rgba(224, 82, 82, 0.15)" : "transparent", color: owner.idCopy === false ? "#E05252" : "#9CA3AF", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>X</button>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1A1A1E", padding: "10px 14px", borderRadius: 10 }}>
-                <span style={{ fontSize: 13, color: "#E8E6E1", fontWeight: 700 }}>개인정보동의서</span>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => toggleDoc('privacyConsent', true)} className="btn-press" style={{ padding: "6px 18px", borderRadius: 8, border: owner.privacyConsent ? "2px solid #5BA87F" : "1px solid #2A2A2E", background: owner.privacyConsent ? "rgba(91, 168, 127, 0.15)" : "transparent", color: owner.privacyConsent ? "#5BA87F" : "#9CA3AF", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>O</button>
-                  <button onClick={() => toggleDoc('privacyConsent', false)} className="btn-press" style={{ padding: "6px 18px", borderRadius: 8, border: owner.privacyConsent === false ? "2px solid #E05252" : "1px solid #2A2A2E", background: owner.privacyConsent === false ? "rgba(224, 82, 82, 0.15)" : "transparent", color: owner.privacyConsent === false ? "#E05252" : "#9CA3AF", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>X</button>
-                </div>
-              </div>
-
-            </div>
+        <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+          <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>조합설립 동의 여부</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <button onClick={() => toggleAgree(true)} className="btn-press" style={{ padding: 14, borderRadius: 12, border: owner.agreed ? "2px solid #5BA87F" : "1px solid #2A2A2E", background: owner.agreed ? "#1A2F1E" : "transparent", color: owner.agreed ? "#5BA87F" : "#9CA3AF", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <span>✓ 동의 완료</span>
+              {owner.agreed && <span style={{ fontSize: 10, color: "#5BA87F", fontWeight: 600 }}>담당: {owner.agreedBy || currentUser}</span>}
+            </button>
+            <button onClick={() => toggleAgree(false)} className="btn-press" style={{ padding: 14, borderRadius: 12, border: !owner.agreed ? "2px solid #E05252" : "1px solid #2A2A2E", background: !owner.agreed ? "#2F1A1A" : "transparent", color: !owner.agreed ? "#E05252" : "#9CA3AF", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              미동의
+            </button>
           </div>
         </section>
 
