@@ -530,10 +530,22 @@ export default function App() {
                   { key: "cat", icon: IconChart, label: "용도별" },
                   { key: "list", icon: IconUsers, label: "소유자" },
                 ].map(t => (
-                  <button key={t.key} className={t.key === 'map' ? 'nav-btn-map' : ''} onClick={() => setView(t.key)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", color: view === t.key ? "#FF2A55" : "#9CA3AF", transition: "color 0.2s", padding: "4px 16px" }}>
-                    <t.icon size={22} />
-                    <span style={{ fontSize: 10, fontWeight: 700 }}>{t.label}</span>
-                  </button>
+                  <button 
+  key={t.key} 
+  className={t.key === 'map' ? 'nav-btn-map' : ''} 
+  onClick={() => {
+    setView(t.key);
+    // 소유자 탭(list)으로 이동할 때만 검색어와 필터를 "전체"로 초기화
+    if (t.key === "list") {
+      setSearch("");
+      setFilter("전체");
+    }
+  }} 
+  style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", color: view === t.key ? "#FF2A55" : "#9CA3AF", transition: "color 0.2s", padding: "4px 16px" }}
+>
+  <t.icon size={22} />
+  <span style={{ fontSize: 10, fontWeight: 700 }}>{t.label}</span>
+</button>
                 ))}
               </nav>
             </>
@@ -1355,7 +1367,8 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <InfoCell label="물건 소재지" value={owner.addr} span />
             <InfoCell label="자산 유형" value={owner.tp} />
-            <InfoCell label="편입면적" value={`${owner.area}㎡`} />
+            <InfoCell label="대지면적" value={owner.area ? `${owner.area}㎡` : "-"} />
+            <InfoCell label="전유면적" value={owner.privateArea ? `${owner.privateArea}㎡` : "-"} />
             <InfoCell label="거주여부" value={owner.residing ? "거주중" : "비거주"} />
             <InfoCell label="연령대" value={owner.age || "-"} />
           </div>
