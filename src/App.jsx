@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { db } from './firebase';
 import { collection, onSnapshot, doc, updateDoc, writeBatch } from "firebase/firestore";
-
+import MapComponent from './MapComponent'; // 👈 이 줄을 추가하세요
 // ─── Owner Data from Excel ───
 const RAW_OWNERS = [
   {"id":1,"sn":1,"nm":"광주이씨광천군파문정총회","addr":"문정동 28","tp":"제2종근린생활시설","cat":"상가/기타","area":233.3,"asset":2838168160,"rights":4319408122,"agreed":false,"age":"","fullAddr":"서울특별시 송파구 가락동 120-1","residing":false,"items":1},
@@ -517,9 +517,9 @@ export default function App() {
               </header>
 
               <main style={{ flex: 1, overflowY: "auto", padding: "0 16px 100px" }}>
-                {view === "dash" && <Dashboard stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} />}
+                {view === "dash" && <Dashboard owners={owners} stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} />}
                 {view === "cat" && <CategoryView stats={stats} catTab={catTab} setCatTab={setCatTab} />}
-                {view === "map" && <div className="mobile-only-map"><InteractiveSvgMap owners={owners} onSelect={handleSelectLot} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={false} /></div>}
+                {view === "map" && <div className="mobile-only-map" style={{ height: '100%' }}><MapComponent owners={owners} mapFilter={filter} onSelectOwner={handleSelectLot} /></div>}
                 {view === "list" && <ListView owners={owners} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} onSelect={handleSelectLot} stats={stats} />}
               </main>
 
@@ -552,10 +552,14 @@ export default function App() {
           )}
         </div>
         
-        <div className="right-pane">
-          <InteractiveSvgMap owners={owners} onSelect={handleSelectLot} mapFilter={filter} setMapFilter={setFilter} stats={stats} isDesktop={true} initialScale={0.8} />
+        <div className="right-pane" style={{ padding: 0 }}>
+          <MapComponent 
+            owners={owners} 
+            mapFilter={filter} 
+            onSelectOwner={handleSelectLot} 
+          />
         </div>
-      </div>
+      </div> {/* 👈 여기에 </div> 를 하나 추가해 주세요! (app-wrapper 닫기) */}
     </>
   );
 }
@@ -994,38 +998,79 @@ function InteractiveSvgMap({ owners, onSelect, mapFilter, setMapFilter, stats, i
     </div>
   );
 }
-function Dashboard({ stats, remainingOwner, remainingArea, setView, setFilter, target }) {
+// ▼▼▼ 여기서부터 복사해서 function Dashboard 바로 윗줄에 붙여넣으세요 ▼▼▼
+
+
+
+function StatCard({ label, value, sub, accent, onClick }) {
+  return (
+    <div onClick={onClick} className={onClick ? "btn-press" : ""} style={{ background: "#161618", borderRadius: 16, padding: "20px 16px", border: "1px solid #1E1E22", cursor: onClick ? "pointer" : "default" }}>
+      <p style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 700 }}>{label}</p>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 8 }}>
+        <h3 style={{ fontSize: 26, fontWeight: 800, color: accent || "#E8E6E1" }}>{value}</h3>
+        <p style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 4, fontWeight: 600 }}>{sub}</p>
+      </div>
+    </div>
+  );
+}
+
+function DonutCard({ title, percent, target, sub, color, remainingText }) {
+  const safePercent = isNaN(percent) ? 0 : percent;
+  return (
+    <div style={{ background: "#161618", borderRadius: 16, padding: "20px 16px", border: "1px solid #1E1E22", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <p style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 700, width: "100%", textAlign: "center", marginBottom: 16 }}>{title}</p>
+      <div style={{ position: "relative", width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 100, height: 100, borderRadius: "50%", background: `conic-gradient(${color} ${safePercent}%, #2A2A2E 0)` }}>
+            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#161618", position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: "#E8E6E1" }}>{safePercent.toFixed(1)}%</span>
+                {remainingText && <span style={{ fontSize: 10, color: "#FF2A55", fontWeight: 700, marginTop: 2 }}>{remainingText}</span>}
+            </div>
+          </div>
+      </div>
+      <div style={{ marginTop: 16, textAlign: "center" }}>
+        <p style={{ fontSize: 12, color: "#E8E6E1", fontWeight: 700 }}>{sub}</p>
+        <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>목표 {target}%</p>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+// ▲▲▲ 여기까지 복사 끝 ▼▼▼
+function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setFilter, target }) {
   const ownerData = [{ v: stats.ownerRate }, { v: 100 - stats.ownerRate }];
   const areaData = [{ v: stats.areaRate }, { v: 100 - stats.areaRate }];
+
+  const today = new Date();
+  const todayStrDash = today.toISOString().split("T")[0]; 
+  const todayStrDot = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`; 
+
+  const todayAgreedList = owners.filter(o => o.consentDate === todayStrDash);
+  const missingDocList = owners.filter(o => o.agreed && (!o.idCopy || !o.privacyConsent));
+  const todayMemos = [];
+  owners.forEach(o => {
+    if(o.memoHistory) {
+      o.memoHistory.forEach(m => {
+        if(m.date.startsWith(todayStrDot)) {
+          todayMemos.push({ ownerName: o.nm, sn: o.sn, ...m });
+        }
+      });
+    }
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <StatCard label="전체 소유자" value={`${stats.total}명`} sub={`동의 ${stats.agreed}명`} accent="#FF2A55" />
-        <StatCard label="오늘 동의" value={`+${stats.todayCount}건`} sub={new Date().toLocaleDateString("ko")} accent="#5BA87F" onClick={() => { setFilter("오늘"); setView("list"); }} />
+        <StatCard label="오늘 동의" value={`+${stats.todayCount}건`} sub={today.toLocaleDateString("ko")} accent="#5BA87F" onClick={() => { setFilter("오늘"); setView("list"); }} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <DonutCard 
-          title="소유자 동의율" 
-          percent={stats.ownerRate} 
-          data={ownerData} 
-          target={target.owner} 
-          sub={`${stats.agreed}/${stats.total}명`} 
-          color="#FF2A55" 
-          gradStart="#FF8A00"
-          remainingText={stats.ownerRate >= target.owner ? "달성 완료" : `-${remainingOwner}명`}
-        />
-        <DonutCard 
-          title="면적 동의율" 
-          percent={stats.areaRate} 
-          data={areaData} 
-          target={target.area} 
-          sub={`${fmtNum(stats.agreedArea)}/${fmtNum(stats.totalArea)}㎡`} 
-          color="#5BA87F" 
-          gradStart="#00E676"
-          remainingText={stats.areaRate >= target.area ? "달성 완료" : `-${fmtNum(remainingArea)}㎡`}
-        />
+        <DonutCard title="소유자 동의율" percent={stats.ownerRate} data={ownerData} target={target.owner} sub={`${stats.agreed}/${stats.total}명`} color="#FF2A55" gradStart="#FF8A00" remainingText={stats.ownerRate >= target.owner ? "달성 완료" : `-${remainingOwner}명`} />
+        <DonutCard title="면적 동의율" percent={stats.areaRate} data={areaData} target={target.area} sub={`${fmtNum(stats.agreedArea)}/${fmtNum(stats.totalArea)}㎡`} color="#5BA87F" gradStart="#00E676" remainingText={stats.areaRate >= target.area ? "달성 완료" : `-${fmtNum(remainingArea)}㎡`} />
       </div>
 
       <div style={{ background: "#161618", borderRadius: 16, padding: "20px 16px", border: "1px solid #1E1E22" }}>
@@ -1066,133 +1111,82 @@ function Dashboard({ stats, remainingOwner, remainingArea, setView, setFilter, t
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <button onClick={() => setView("cat")} className="btn-press" style={{ background: "#161618", border: "1px solid #1E1E22", borderRadius: 14, padding: 16, cursor: "pointer", textAlign: "left", color: "#E8E6E1" }}>
-          <IconChart size={20} className="" />
+          <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           <p style={{ fontSize: 13, fontWeight: 700, color: "#E8E6E1", marginTop: 8 }}>용도별 분석</p>
         </button>
         <button onClick={() => setView("list")} className="btn-press" style={{ background: "#161618", border: "1px solid #1E1E22", borderRadius: 14, padding: 16, cursor: "pointer", textAlign: "left", color: "#E8E6E1" }}>
-          <IconUsers size={20} className="" />
+          <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           <p style={{ fontSize: 13, fontWeight: 700, color: "#E8E6E1", marginTop: 8 }}>소유자 명부</p>
         </button>
       </div>
-    </div>
-  );
-}
 
-function StatCard({ label, value, sub, accent, onClick }) {
-  return (
-    <div onClick={onClick} className={onClick ? "btn-press" : ""} style={{ background: "#161618", borderRadius: 16, padding: "16px 14px", border: "1px solid #1E1E22", cursor: onClick ? "pointer" : "default" }}>
-      <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: 0.5 }}>{label}</p>
-      <p style={{ fontSize: 24, fontWeight: 800, color: accent, marginTop: 4 }}>{value}</p>
-      <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{sub}</p>
-    </div>
-  );
-}
-
-function DonutCard({ title, percent, data, target, sub, color, gradStart, remainingText }) {
-  const gradId = `grad-${title.replace(/\s/g, '')}`;
-  return (
-    <div style={{ background: "#161618", borderRadius: 16, padding: "16px 10px", border: "1px solid #1E1E22", display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 8 }}>{title}</p>
-      <div style={{ position: "relative", width: 110, height: 110 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <defs>
-              <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor={gradStart} />
-                <stop offset="100%" stopColor={color} />
-              </linearGradient>
-            </defs>
-            <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={50} startAngle={90} endAngle={-270} dataKey="v" stroke="none">
-              <Cell fill={`url(#${gradId})`} />
-              <Cell fill="#2A2A2E" />
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", width: "100%" }}>
-          <p style={{ fontSize: 18, fontWeight: 800, color: "#E8E6E1", lineHeight: 1 }}>{percent.toFixed(1)}<span style={{ fontSize: 10 }}>%</span></p>
-          {remainingText && <p style={{ fontSize: 9, color: color, marginTop: 4, fontWeight: 700, background: "rgba(255,255,255,0.05)", padding: "2px 4px", borderRadius: 4, display: "inline-block" }}>{remainingText}</p>}
-        </div>
-      </div>
-      <p style={{ fontSize: 10, color: "#9CA3AF", marginTop: 6 }}>{sub}</p>
-      <p style={{ fontSize: 9, color: "#A1A1AA", marginTop: 2 }}>목표 {target}%</p>
-    </div>
-  );
-}
-
-function CategoryView({ stats, catTab, setCatTab }) {
-  const cats = ["공동주택", "단독/다가구", "상가/기타"];
-  const colors = { "공동주택": "#FF2A55", "단독/다가구": "#5BA87F", "상가/기타": "#7B8CDE" };
-  const d = stats.byCategory[catTab];
-  const rate = d.total ? (d.agreed / d.total * 100) : 0;
-  const areaRate = d.totalArea ? (d.agreedArea / d.totalArea * 100) : 0;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>용도별 동의 현황</h2>
-      <p style={{ fontSize: 12, color: "#9CA3AF" }}>토지조서 기반 실시간 분석</p>
-
-      <div style={{ display: "flex", background: "#161618", borderRadius: 12, padding: 3, border: "1px solid #1E1E22" }}>
-        {cats.map(c => (
-          <button key={c} onClick={() => setCatTab(c)} className="btn-press" style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, background: catTab === c ? "#2A2A2E" : "transparent", color: catTab === c ? colors[c] : "#9CA3AF", transition: "all 0.2s" }}>{c}</button>
-        ))}
-      </div>
-
-      <div style={{ background: "#161618", borderRadius: 16, padding: 20, border: "1px solid #1E1E22" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
-          <div>
-            <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>소유자 동의율</p>
-            <p style={{ fontSize: 32, fontWeight: 800, color: colors[catTab] }}>{rate.toFixed(1)}%</p>
+      {/* ★ 1. 금일 동의 접수 섹션 독립 분리 */}
+      <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22", marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 4, height: 14, background: "#5BA87F", borderRadius: 2 }} />
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>금일 동의 접수</p>
           </div>
-          <p style={{ fontSize: 12, color: "#9CA3AF" }}>{d.agreed} / {d.total}명</p>
+          <span style={{ fontSize: 11, color: "#5BA87F", fontWeight: 800, background: "rgba(91, 168, 127, 0.1)", padding: "2px 6px", borderRadius: 4 }}>{todayAgreedList.length}명</span>
         </div>
-        <ProgressBar value={rate} color={colors[catTab]} />
-
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #1E1E22" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
-            <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>면적 동의율</p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: "#E8E6E1" }}>{areaRate.toFixed(1)}%</p>
-            </div>
-            <p style={{ fontSize: 11, color: "#9CA3AF" }}>{fmtNum(d.agreedArea)} / {fmtNum(d.totalArea)}㎡</p>
+        {todayAgreedList.length > 0 ? (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+            {todayAgreedList.map(o => (
+              <span key={o.id} style={{ fontSize: 11, color: "#E8E6E1", background: "#2A2A2E", padding: "4px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{o.nm} <span style={{ color: "#9CA3AF" }}>#{o.sn}</span></span>
+            ))}
           </div>
-          <ProgressBar value={areaRate} color="#9CA3AF" />
-        </div>
+        ) : <p style={{ fontSize: 11, color: "#555" }}>오늘 추가된 동의자가 없습니다.</p>}
       </div>
 
+      {/* ★ 2. 서류 미비자 섹션 독립 분리 */}
       <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: "#9CA3AF", marginBottom: 12 }}>유형별 비교</p>
-        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr 1fr", gap: "8px 12px", fontSize: 11, fontWeight: 600 }}>
-          <span style={{ color: "#9CA3AF" }}>구분</span>
-          <span style={{ color: "#9CA3AF", textAlign: "right" }}>소유자</span>
-          <span style={{ color: "#9CA3AF", textAlign: "right" }}>면적</span>
-          <span style={{ color: "#9CA3AF", textAlign: "right" }}>동의율</span>
-          {cats.map(c => {
-            const dd = stats.byCategory[c];
-            const r = dd.total ? (dd.agreed / dd.total * 100).toFixed(1) : "0.0";
-            return [
-              <span key={c + "n"} style={{ color: colors[c], fontWeight: 700 }}>{c}</span>,
-              <span key={c + "o"} style={{ textAlign: "right", color: "#E8E6E1" }}>{dd.total}명</span>,
-              <span key={c + "a"} style={{ textAlign: "right", color: "#A1A1AA" }}>{fmtNum(dd.totalArea)}㎡</span>,
-              <span key={c + "r"} style={{ textAlign: "right", color: colors[c], fontWeight: 700 }}>{r}%</span>,
-            ];
-          })}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 4, height: 14, background: "#FF8A00", borderRadius: 2 }} />
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>서류 미비자 <span style={{fontSize: 10, fontWeight: 500, color: "#9CA3AF"}}>(동의완료 기준)</span></p>
+          </div>
+          <button onClick={() => { setFilter("서류미비"); setView("list"); }} className="btn-press" style={{ fontSize: 11, color: "#FF8A00", fontWeight: 800, background: "rgba(255, 138, 0, 0.1)", padding: "2px 6px", borderRadius: 4, border: "none", cursor: "pointer" }}>{missingDocList.length}명 보기 &rarr;</button>
         </div>
+        {missingDocList.length > 0 ? (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+            {missingDocList.map(o => (
+              <span key={o.id} style={{ fontSize: 11, color: "#FF8A00", border: "1px solid rgba(255, 138, 0, 0.3)", padding: "4px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{o.nm} <span style={{ color: "#9CA3AF" }}>#{o.sn}</span></span>
+            ))}
+          </div>
+        ) : <p style={{ fontSize: 11, color: "#555" }}>서류 미비자가 없습니다.</p>}
       </div>
-    </div>
-  );
-}
 
-function ProgressBar({ value, color }) {
-  return (
-    <div style={{ height: 6, background: "#2A2A2E", borderRadius: 3, overflow: "hidden" }}>
-      <div style={{ height: "100%", width: `${Math.min(100, value)}%`, background: color, borderRadius: 3, transition: "width 0.6s ease" }} />
+      {/* ★ 3. 오늘 등록된 메모 섹션 독립 분리 */}
+      <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 4, height: 14, background: "#7B8CDE", borderRadius: 2 }} />
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>오늘 등록된 메모</p>
+          </div>
+          <span style={{ fontSize: 11, color: "#7B8CDE", fontWeight: 800, background: "rgba(123, 140, 222, 0.1)", padding: "2px 6px", borderRadius: 4 }}>{todayMemos.length}건</span>
+        </div>
+        {todayMemos.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 150, overflowY: "auto" }}>
+            {todayMemos.map((m, idx) => (
+              <div key={idx} style={{ background: "#2A2A2E", padding: "8px 10px", borderRadius: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#7B8CDE" }}>{m.ownerName} <span style={{color: "#9CA3AF", fontWeight:400}}>#{m.sn}</span></span>
+                  <span style={{ fontSize: 9, color: "#9CA3AF" }}>{m.author}</span>
+                </div>
+                <p style={{ fontSize: 11, color: "#E8E6E1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.text}</p>
+              </div>
+            ))}
+          </div>
+        ) : <p style={{ fontSize: 11, color: "#555" }}>오늘 등록된 메모가 없습니다.</p>}
+      </div>
+
     </div>
   );
 }
 
 function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stats }) {
   const today = new Date().toISOString().split("T")[0];
-  const filtered = useMemo(() => {
+  const filtered = React.useMemo(() => {
     return owners.filter(o => {
       const matchSearch = !search || o.nm.includes(search) || o.addr.includes(search) || String(o.sn) === search;
       if (!matchSearch) return false;
@@ -1200,6 +1194,7 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
       if (filter === "오늘") return o.consentDate === today;
       if (filter === "동의완료") return o.agreed;
       if (filter === "미동의") return !o.agreed;
+      if (filter === "서류미비") return o.agreed && (!o.idCopy || !o.privacyConsent);
       return true;
     });
   }, [owners, filter, search, today]);
@@ -1209,14 +1204,13 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
       <h2 style={{ fontSize: 20, fontWeight: 800 }}>소유자 명부</h2>
 
       <div style={{ position: "relative" }}>
-        <IconSearch size={18} className="" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="이름, 지번, 연번 검색" style={{ width: "100%", padding: "12px 12px 12px 40px", background: "#161618", border: "1px solid #1E1E22", borderRadius: 12, color: "#E8E6E1", fontSize: 13, outline: "none" }} />
         <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </div>
 
-      <div style={{ display: "flex", gap: 6, overflow: "auto" }}>
-        {["전체", "미동의", "동의완료", "오늘"].map(f => (
-          <button key={f} onClick={() => setFilter(f)} className="btn-press" style={{ padding: "8px 16px", borderRadius: 20, border: filter === f ? "none" : "1px solid #2A2A2E", background: filter === f ? "#FF2A55" : "transparent", color: filter === f ? "#fff" : "#9CA3AF", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{f}</button>
+      <div style={{ display: "flex", gap: 6, overflow: "auto", paddingBottom: 4 }}>
+        {["전체", "미동의", "동의완료", "서류미비", "오늘"].map(f => (
+          <button key={f} onClick={() => setFilter(f)} className="btn-press" style={{ padding: "8px 16px", borderRadius: 20, border: filter === f ? "none" : "1px solid #2A2A2E", background: filter === f ? (f === "서류미비" ? "#FF8A00" : "#FF2A55") : "transparent", color: filter === f ? "#fff" : "#9CA3AF", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{f}</button>
         ))}
       </div>
 
@@ -1229,7 +1223,8 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
       <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>검색결과 {filtered.length}명</p>
       
       {filtered.map(o => {
-        const unit = extractUnit(o.addr, o.cat);
+        const unitMatch = o.addr.match(/([0-9a-zA-Z가-힣]+호)/);
+        const unit = unitMatch ? unitMatch[1] : "";
         return (
           <div key={o.id} onClick={() => onSelect(o.id)} className="btn-press" style={{ background: "#161618", borderRadius: 14, padding: "14px 16px", border: "1px solid #1E1E22", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1239,6 +1234,13 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
                 <span style={{ fontSize: 10, color: "#A1A1AA", fontWeight: 600 }}>#{o.sn}</span>
               </div>
               <p style={{ fontSize: 11, color: "#9CA3AF", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.addr}</p>
+              
+              {/* ★ 전화번호 데이터 렌더링 추가 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                <span style={{ fontSize: 11, color: "#A1A1AA", fontWeight: 600 }}>{o.phone || o.hp || o.tel || "번호 미등록"}</span>
+              </div>
+
               <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "#A1A1AA" }}>
                 <span>{o.tp}</span>
                 <span>{o.area}㎡</span>
@@ -1247,8 +1249,6 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, marginLeft: 12 }}>
               <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: o.agreed ? "rgba(34, 197, 94, 0.2)" : "#2A2A2E", color: o.agreed ? "#22C55E" : "#9CA3AF" }}>{o.agreed ? "동의완료" : "미동의"}</span>
-              
-              {/* 서류 상태 뱃지: 동의 완료자에게만 서류 미비/완비 상태 직관적 표시 */}
               {o.agreed && (
                 o.idCopy && o.privacyConsent ? (
                   <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(59, 130, 246, 0.15)", color: "#3B82F6" }}>📄 서류완비</span>
@@ -1256,7 +1256,6 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
                   <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(255, 138, 0, 0.15)", color: "#FF8A00" }}>⚠️ 서류미비</span>
                 )
               )}
-
               {o.memoHistory && o.memoHistory.length > 0 && <span style={{ fontSize: 9, color: "#7B8CDE", marginTop: 1 }}>메모 {o.memoHistory.length}건</span>}
             </div>
           </div>
@@ -1266,7 +1265,6 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
     </div>
   );
 }
-
 function MiniStat({ label, value, accent }) {
   return (
     <div style={{ flex: 1, background: "#161618", borderRadius: 10, padding: "10px 12px", border: "1px solid #1E1E22" }}>
