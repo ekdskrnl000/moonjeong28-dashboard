@@ -302,7 +302,14 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
                 </div>
                 <button onClick={() => setInfoWindowData(null)} style={{ background: "none", border: "none", fontSize: "20px", fontWeight: "700", color: "#9CA3AF", cursor: "pointer", padding: 0 }}>✕</button>
               </div>
-              <ul style={{ listStyle: "none", padding: 0, margin: "16px 0 0 0", maxHeight: "250px", overflowY: "auto" }}>
+              {/* ★ 터치 및 스크롤 이벤트가 지도로 빠져나가지 않도록 방어벽(stopPropagation)을 추가합니다. */}
+              <ul 
+                style={{ listStyle: "none", padding: 0, margin: "16px 0 0 0", maxHeight: "250px", overflowY: "auto", overscrollBehavior: "contain" }}
+                onWheel={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 {infoWindowData.ownersInLot.map(o => {
                   const unitMatch = o.addr.match(/([0-9a-zA-Z가-힣]+호)/);
                   const unit = unitMatch ? unitMatch[1] : "";
