@@ -6,9 +6,6 @@ const center = { lat: 37.4898, lng: 127.1255 };
 
 const OWNER_LOTS = {1:["28"],2:["28-1","28-34"],3:["28-1"],4:["28-1"],5:["28-1"],6:["28-1"],7:["28-1"],8:["28-1"],9:["28-1"],10:["28-1"],11:["28-2"],12:["28-2"],13:["28-2"],14:["28-2"],15:["28-2"],16:["28-2"],17:["28-2"],18:["28-2"],19:["28-2"],20:["28-3"],21:["28-3"],22:["28-3"],23:["28-3"],24:["28-3"],25:["28-3"],26:["28-3"],27:["28-3"],28:["28-4"],29:["28-5"],30:["28-5"],31:["28-5"],32:["28-5"],33:["28-5"],34:["28-5"],35:["28-5"],36:["28-5"],37:["28-6"],38:["28-6"],39:["28-6"],40:["28-6"],41:["28-6"],42:["28-6"],43:["28-6"],44:["28-6"],45:["28-6"],46:["28-6"],47:["28-6"],48:["28-7"],49:["28-8"],50:["28-10"],51:["28-11"],52:["28-11"],53:["28-11"],54:["28-11"],55:["28-11"],56:["28-11"],57:["28-11"],58:["28-11"],59:["28-12"],60:["28-13"],61:["28-14"],62:["28-15"],63:["28-15"],64:["28-15"],65:["28-15"],66:["28-15"],67:["28-15"],68:["28-15"],69:["28-15"],70:["28-15"],71:["28-17"],72:["28-18"],73:["28-19"],74:["28-21"],75:["28-21"],76:["28-21"],77:["28-21"],78:["28-21"],79:["28-21"],80:["28-21"],81:["28-21"],82:["28-21"],83:["28-21"],84:["28-21"],85:["28-21"],86:["28-23"],87:["28-24"],88:["28-26"],89:["28-27"],90:["28-28"],91:["28-29"],92:["28-31"],93:["28-32"],94:["28-32"],95:["28-32"],96:["28-32"],97:["28-32"],98:["28-32"],99:["28-35"],100:["28-36"]};
 
-const TEXT_SHIFT_X = 25;  
-const TEXT_SHIFT_Y = 5;
-
 const extractDisplayName = (jibun, ownersInLot) => {
   let displayName = jibun;
   if (ownersInLot.length > 0 && ownersInLot[0].addr) {
@@ -30,11 +27,12 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
   const [infoWindowData, setInfoWindowData] = useState(null);
   const [lotCenters, setLotCenters] = useState([]);
   
-  // ★ 왼쪽 상단에 띄울 자체 필터 상태 (동의상태 & 용도별)
+  // ★ 현재 지도의 줌 레벨을 추적하는 상태 추가
+  const [currentZoom, setCurrentZoom] = useState(19);
+
   const [statusFilter, setStatusFilter] = useState("전체");
   const [catFilter, setCatFilter] = useState("전체");
 
-  // App에서 넘어온 필터가 바뀌면 연동
   useEffect(() => { setStatusFilter(mapFilter); }, [mapFilter]);
   
   const ownersRef = useRef(owners);
@@ -75,7 +73,6 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
         else { fillColor = '#EF4444'; }
       }
 
-      // ★ 필터 로직: 상태와 용도를 모두 검사합니다.
       let isStatusMatch = true;
       if (statusFilter === "동의완료" && agreedCount !== totalCount) isStatusMatch = false;
       if (statusFilter === "미동의" && (totalCount === 0 || agreedCount > 0)) isStatusMatch = false;
@@ -89,7 +86,6 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
 
       let isVisible = isStatusMatch && isCatMatch;
       
-      // 필터에 안 맞으면 투명하게 감춤
       if (!isVisible) {
         fillOpacity = 0.05;
       }
@@ -120,7 +116,12 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
         data.features.forEach(f => {
           if (f.geometry.type === 'Point') {
             const cleanJibun = f.properties.label.replace(/[대도]/g, '').trim();
-            centers.push({ jibun: cleanJibun, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] });
+            centers.push({ 
+              jibun: cleanJibun, 
+              // lat(위도)는 위아래, lng(경도)는 좌우를 뜻합니다.
+              lat: f.geometry.coordinates[1] - 0.00001, // (선택) 마커를 살짝 아래로 내림
+              lng: f.geometry.coordinates[0] + 0.00004  // ★ 핵심: 마커를 우측으로 살짝 이동!
+            });
           }
         });
         setLotCenters(centers);
@@ -147,6 +148,13 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
 
   const onUnmount = useCallback(() => { mapRef.current = null; }, []);
 
+  // ★ 지도를 확대/축소할 때마다 현재 줌 레벨을 기록하는 함수
+  const handleZoomChanged = useCallback(() => {
+    if (mapRef.current) {
+      setCurrentZoom(mapRef.current.getZoom());
+    }
+  }, []);
+
   useEffect(() => { if (mapRef.current) applyStyle(mapRef.current); }, [owners, statusFilter, catFilter, infoWindowData, applyStyle]);
 
   if (!isLoaded) return <div style={{ color: 'white', padding: '20px' }}>구글 지도 로딩중... 기다려주세요!</div>;
@@ -166,15 +174,10 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
         .filter-btn {
           padding: 6px 12px; border-radius: 6px; border: none; font-weight: 700; font-size: 11px; cursor: pointer; color: #9CA3AF; background: transparent; transition: all 0.2s; white-space: nowrap;
         }
-        .filter-btn.active {
-          color: #FFF; background: #FF2A55;
-        }
-        .filter-btn.active-cat {
-          color: #FFF; background: #3B82F6;
-        }
+        .filter-btn.active { color: #FFF; background: #FF2A55; }
+        .filter-btn.active-cat { color: #FFF; background: #3B82F6; }
       `}</style>
 
-      {/* ★ 1. 좌측 상단: 동의 상태 & 용도 필터 UI 복원! */}
       <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', gap: '4px', background: '#161618', padding: '4px', borderRadius: '8px', border: '1px solid #2A2A2E', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', overflowX: 'auto' }}>
           {["전체", "동의완료", "부분동의", "미동의"].map(f => (
@@ -184,20 +187,27 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
         <div style={{ display: 'flex', gap: '4px', background: '#161618', padding: '4px', borderRadius: '8px', border: '1px solid #2A2A2E', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', overflowX: 'auto' }}>
           {["전체", "단독/다가구", "공동주택", "상가/기타"].map(c => {
             const label = c === "전체" ? "모든 용도" : c === "단독/다가구" ? "🏠 단독" : c === "공동주택" ? "🏢 공동" : "🏪 기타";
-            return (
-              <button key={c} onClick={() => setCatFilter(c)} className={`filter-btn ${catFilter === c ? 'active-cat' : ''}`}>{label}</button>
-            );
+            return <button key={c} onClick={() => setCatFilter(c)} className={`filter-btn ${catFilter === c ? 'active-cat' : ''}`}>{label}</button>;
           })}
         </div>
       </div>
 
-      {/* 우측 상단: 위성/일반 토글 */}
       <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10, display: 'flex', gap: '8px', background: '#161618', padding: '6px', borderRadius: '8px', border: '1px solid #2A2A2E', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
         <button onClick={() => setMapTypeId('roadmap')} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', fontWeight: 700, cursor: 'pointer', background: mapTypeId === 'roadmap' ? '#FF2A55' : 'transparent', color: mapTypeId === 'roadmap' ? '#FFF' : '#9CA3AF' }}>일반</button>
         <button onClick={() => setMapTypeId('satellite')} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', fontWeight: 700, cursor: 'pointer', background: mapTypeId === 'satellite' ? '#FF2A55' : 'transparent', color: mapTypeId === 'satellite' ? '#FFF' : '#9CA3AF' }}>위성</button>
       </div>
 
-      <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={19} mapTypeId={mapTypeId} onLoad={onLoad} onUnmount={onUnmount} options={{ disableDefaultUI: true, zoomControl: true, mapTypeControl: false, gestureHandling: 'greedy' }}>
+      {/* ★ onZoomChanged 이벤트를 추가하여 줌 레벨을 추적합니다 */}
+      <GoogleMap 
+        mapContainerStyle={containerStyle} 
+        center={center} 
+        zoom={19} 
+        mapTypeId={mapTypeId} 
+        onLoad={onLoad} 
+        onUnmount={onUnmount} 
+        onZoomChanged={handleZoomChanged}
+        options={{ disableDefaultUI: true, zoomControl: true, mapTypeControl: false, gestureHandling: 'greedy' }}
+      >
         {lotCenters.map((lot) => {
           const ownersInLot = owners.filter(o => (OWNER_LOTS[o.sn] || []).includes(lot.jibun));
           const totalCount = ownersInLot.length;
@@ -212,7 +222,6 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
             ? Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b) 
             : "상가/기타";
 
-          // ★ 필터에 안 맞으면 아이콘도 숨김 처리
           let isStatusMatch = true;
           if (statusFilter === "동의완료" && agreedCount !== totalCount) isStatusMatch = false;
           if (statusFilter === "미동의" && agreedCount > 0) isStatusMatch = false;
@@ -224,33 +233,58 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
             if (catFilter !== "상가/기타" && primaryCat !== catFilter) isCatMatch = false;
           }
 
-          if (!isStatusMatch || !isCatMatch) return null; // 화면에서 지워버림
+          if (!isStatusMatch || !isCatMatch) return null;
 
           let boxColor = '#991B1B'; 
           if (primaryCat === "공동주택") boxColor = '#854D0E'; 
           else if (primaryCat === "상가/기타" || primaryCat === "기타") boxColor = '#1E3A8A'; 
 
+          // ★ 줌 레벨에 따른 크기(Scale) 및 텍스트 표시 여부 계산
+          const markerScale = currentZoom >= 19 ? 1 : 
+                              currentZoom === 18 ? 0.8 : 
+                              currentZoom === 17 ? 0.6 : 0.4; // 16 이하일 땐 아주 작게
+          
+          // 너무 멀어지면 지번(글씨)이나 동의율 배지를 숨겨서 깔끔하게 만듭니다.
+          const showText = currentZoom >= 18; 
+          const showBadge = currentZoom >= 17;
+
           return (
             <OverlayView key={lot.jibun} position={{ lat: lot.lat, lng: lot.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-              <div 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setInfoWindowData({ position: { lat: lot.lat, lng: lot.lng }, jibun: lot.jibun, displayName: extractDisplayName(lot.jibun, ownersInLot), ownersInLot });
-                }}
-                style={{ 
-                  transform: `translate(calc(-50% + ${TEXT_SHIFT_X}px), calc(-50% + ${TEXT_SHIFT_Y}px))`, 
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', pointerEvents: 'auto',
-                  zIndex: isSelected ? 100 : 1
-                }}
-              >
-                <span style={{ whiteSpace: 'nowrap', fontSize: '13px', fontWeight: '800', color: '#FFF', textShadow: '0px 1px 3px rgba(0,0,0,0.9)', marginBottom: '4px' }}>{lot.jibun}</span>
+  <div 
+    onClick={(e) => {
+      e.stopPropagation();
+      setInfoWindowData({ position: { lat: lot.lat, lng: lot.lng }, jibun: lot.jibun, displayName: extractDisplayName(lot.jibun, ownersInLot), ownersInLot });
+    }}
+    style={{ 
+      // ★ 픽셀 이동(SHIFT)을 완전히 제거하고 정중앙(-50%)에 완벽히 고정합니다.
+      transform: `translate(-50%, -50%) scale(${markerScale})`, 
+      display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', pointerEvents: 'auto',
+      zIndex: isSelected ? 100 : 1,
+      transformOrigin: 'center center', // ★ 축소될 때도 제자리에서 작아지도록 중심점 변경
+      transition: 'transform 0.2s ease-out' 
+    }}
+  >
+                {/* 지번 텍스트 (줌 아웃 시 숨김) */}
+                {showText && (
+                  <span style={{ whiteSpace: 'nowrap', fontSize: '13px', fontWeight: '800', color: '#FFF', textShadow: '0px 1px 3px rgba(0,0,0,0.9)', marginBottom: '4px' }}>
+                    {lot.jibun}
+                  </span>
+                )}
+
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.8))', animation: isSelected ? 'mapPulseGlow 1.5s infinite' : 'none', borderRadius: '4px' }}>
+                  {/* 중앙 용도 아이콘 */}
                   <svg width="28" height="28" viewBox="0 0 24 24">
                     {primaryCat === "단독/다가구" && <g><rect x="4" y="10" width="16" height="12" rx="1" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><polygon points="2,10 12,2 22,10" fill={boxColor} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" /></g>}
                     {primaryCat === "공동주택" && <g><rect x="4" y="4" width="16" height="18" rx="2" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><rect x="8" y="8" width="3" height="3" fill="#fff" rx="0.5" /><rect x="13" y="8" width="3" height="3" fill="#fff" rx="0.5" /><rect x="8" y="14" width="3" height="3" fill="#fff" rx="0.5" /><rect x="13" y="14" width="3" height="3" fill="#fff" rx="0.5" /></g>}
                     {(primaryCat === "상가/기타" || primaryCat === "기타") && <g><rect x="3" y="10" width="18" height="12" rx="1" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><polygon points="2,10 4,4 20,4 22,10" fill={boxColor} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" /><line x1="8" y1="10" x2="8" y2="15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" /><line x1="16" y1="10" x2="16" y2="15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" /></g>}
                   </svg>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#FFF', marginTop: '2px', background: boxColor, padding: '0px 4px', borderRadius: '4px', border: '1px solid #fff' }}>{agreedCount}/{totalCount}</span>
+                  
+                  {/* 동의율 배지 (줌 아웃 시 숨김) */}
+                  {showBadge && (
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#FFF', marginTop: '2px', background: boxColor, padding: '0px 4px', borderRadius: '4px', border: '1px solid #fff' }}>
+                      {agreedCount}/{totalCount}
+                    </span>
+                  )}
                 </div>
               </div>
             </OverlayView>

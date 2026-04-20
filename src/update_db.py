@@ -25,6 +25,20 @@ for col in df.columns:
 
 print(f"-> 💡 감지된 전유면적 엑셀 열 이름: '{private_area_col}'")
 
+# ★ 추가된 기능: 연락처 자동 보정 (하이픈 삽입 및 0 누락 방지)
+def format_contact(val):
+    if pd.isna(val) or str(val).strip() == "" or str(val).lower() == 'nan':
+        return ""
+    s = str(val).strip()
+    if s.endswith('.0'): 
+        s = s[:-2]
+    if s.isdigit():
+        if len(s) == 10 and s.startswith('10'):
+            s = '0' + s
+        if len(s) == 11:
+            s = f"{s[:3]}-{s[3:7]}-{s[7:]}"
+    return s
+
 def merge_excel_to_firebase(dataframe):
     print("\n파이어베이스 데이터 병합을 시작합니다...")
     success_count = 0
@@ -47,18 +61,21 @@ def merge_excel_to_firebase(dataframe):
             private_area_val = safe_float(row[private_area_col]) if private_area_col else 0.0
             asset_val = int(safe_float(row['종전추정가액'])) if '종전추정가액' in dataframe.columns else 0
             
-            # [디버그용 화면 출력] 1번, 2번 소유주의 엑셀 원본 데이터를 터미널에 보여줍니다.
-            if doc_id in ["1", "2"]:
-                print(f"   [디버그 확인용] 연번 {doc_id} ({nm_val}) | 엑셀에서 찾은 전유면적 원본: '{row[private_area_col]}' -> 파이썬 인식: {private_area_val}")
+            # ★ 추가된 기능: 엑셀에서 연락처(AP열) 가져와서 예쁘게 만들기
+            contact_val = format_contact(row.get('연락처', ''))
 
             update_data = {
                 'nm': nm_val,
                 'tp': str(row['주용도4']).strip() if '주용도4' in dataframe.columns else "",
                 'residing': True if str(row['거주중']).strip() == 'O' else False,
-                'age': str(row['연령']).strip() if '연령' in dataframe.columns else ""
+                'age': str(row['연령']).strip() if '연령' in dataframe.columns else "",
             }
             
-            # [핵심 보호 로직] 면적이나 가액이 0보다 클 때만 업데이트합니다! (빈칸 덮어쓰기 완벽 방지)
+            # 연락처 데이터가 존재할 때만 업데이트
+            if contact_val:
+                update_data['contact'] = contact_val
+
+            # 면적이나 가액이 0보다 클 때만 업데이트
             if area_val > 0:
                 update_data['area'] = area_val
             if private_area_val > 0:

@@ -1184,6 +1184,96 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
   );
 }
 
+// ▼▼▼ 여기서부터 복사해서 붙여넣으세요 ▼▼▼
+
+// ▼▼▼ 여기서부터 복사해서 기존 CategoryView를 덮어쓰세요 ▼▼▼
+
+function CategoryView({ stats, catTab, setCatTab }) {
+  const tabs = ["공동주택", "단독/다가구", "상가/기타"];
+  const currentStats = stats.byCategory[catTab] || { total: 0, agreed: 0, totalArea: 0, agreedArea: 0 };
+  const ownerRate = currentStats.total ? (currentStats.agreed / currentStats.total) * 100 : 0;
+  const areaRate = currentStats.totalArea ? (currentStats.agreedArea / currentStats.totalArea) * 100 : 0;
+
+  // 용도별 대표 색상 세팅
+  const colors = {
+    "공동주택": "#FF2A55", // 빨강
+    "단독/다가구": "#5BA87F", // 초록
+    "상가/기타": "#7B8CDE" // 파랑
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <h2 style={{ fontSize: 22, fontWeight: 800 }}>용도별 동의 현황</h2>
+        <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>토지조서 기반 실시간 분석</p>
+      </div>
+
+      {/* 상단 탭 버튼 */}
+      <div style={{ display: "flex", background: "#161618", padding: 6, borderRadius: 12, border: "1px solid #1E1E22" }}>
+        {tabs.map(t => (
+          <button key={t} onClick={() => setCatTab(t)} className="btn-press" style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 13, background: catTab === t ? "#2A2A2E" : "transparent", color: catTab === t ? colors[t] : "#9CA3AF", cursor: "pointer" }}>{t}</button>
+        ))}
+      </div>
+
+      {/* 메인 통계 카드 */}
+      <div style={{ background: "#161618", borderRadius: 16, padding: 24, border: "1px solid #1E1E22" }}>
+        <div style={{ marginBottom: 24 }}>
+          <p style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 700, marginBottom: 8 }}>소유자 동의율</p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
+            <span style={{ fontSize: 32, fontWeight: 800, color: colors[catTab] }}>{ownerRate.toFixed(1)}%</span>
+            <span style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 600 }}>{currentStats.agreed} / {currentStats.total}명</span>
+          </div>
+          <div style={{ height: 6, background: "#2A2A2E", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${ownerRate}%`, background: colors[catTab], borderRadius: 3 }} />
+          </div>
+        </div>
+
+        <div>
+          <p style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 700, marginBottom: 8 }}>면적 동의율</p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
+            <span style={{ fontSize: 32, fontWeight: 800, color: "#E8E6E1" }}>{areaRate.toFixed(1)}%</span>
+            <span style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 600 }}>{fmtNum(currentStats.agreedArea)} / {fmtNum(currentStats.totalArea)}㎡</span>
+          </div>
+          <div style={{ height: 6, background: "#2A2A2E", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${areaRate}%`, background: "#9CA3AF", borderRadius: 3 }} />
+          </div>
+        </div>
+      </div>
+
+      {/* 유형별 비교 테이블 */}
+      <div style={{ background: "#161618", borderRadius: 16, padding: 20, border: "1px solid #1E1E22" }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: "#9CA3AF", marginBottom: 16 }}>유형별 비교</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "right", fontSize: 13 }}>
+          <thead>
+            <tr style={{ color: "#9CA3AF", borderBottom: "1px solid #2A2A2E" }}>
+              <th style={{ padding: "8px 0", textAlign: "left", fontWeight: 600 }}>구분</th>
+              <th style={{ padding: "8px 0", fontWeight: 600 }}>소유자</th>
+              <th style={{ padding: "8px 0", fontWeight: 600 }}>면적</th>
+              <th style={{ padding: "8px 0", fontWeight: 600 }}>동의율</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tabs.map(c => {
+              const d = stats.byCategory[c] || { total: 0, agreed: 0, totalArea: 0 };
+              const r = d.total ? (d.agreed / d.total * 100) : 0;
+              return (
+                <tr key={c} style={{ borderBottom: "1px solid #1E1E22" }}>
+                  <td style={{ padding: "12px 0", textAlign: "left", fontWeight: 700, color: colors[c] }}>{c}</td>
+                  <td style={{ padding: "12px 0", color: "#E8E6E1", fontWeight: 600 }}>{d.total}명</td>
+                  <td style={{ padding: "12px 0", color: "#9CA3AF" }}>{fmtNum(d.totalArea)}㎡</td>
+                  <td style={{ padding: "12px 0", color: colors[c], fontWeight: 800 }}>{r.toFixed(1)}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ▲▲▲ 여기까지 복사 끝 ▼▼▼
+
 function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stats }) {
   const today = new Date().toISOString().split("T")[0];
   const filtered = React.useMemo(() => {
@@ -1216,7 +1306,7 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
 
       <div style={{ display: "flex", gap: 8 }}>
         <MiniStat label="전체" value={`${stats.total}명`} />
-        <MiniStat label="동의" value={`${stats.agreed}명`} accent />
+        <MiniStat label="동의" value={`${stats.agreed}명`} accent={true} />
         <MiniStat label="미동의" value={`${stats.total - stats.agreed}명`} />
       </div>
 
@@ -1235,11 +1325,16 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
               </div>
               <p style={{ fontSize: 11, color: "#9CA3AF", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.addr}</p>
               
-              {/* ★ 전화번호 데이터 렌더링 추가 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                <span style={{ fontSize: 11, color: "#A1A1AA", fontWeight: 600 }}>{o.phone || o.hp || o.tel || "번호 미등록"}</span>
-              </div>
+              {/* ★ 엑셀의 '연락처' 컬럼을 정확히 타겟팅하여 가져옵니다! */}
+              {/* ★ 최신 'contact' 필드를 사용하여 전화번호를 출력합니다 */}
+<div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+  </svg>
+  <span style={{ fontSize: 11, color: "#A1A1AA", fontWeight: 600, whiteSpace: "pre-wrap" }}>
+    {o.contact || "번호 미등록"}
+  </span>
+</div>
 
               <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "#A1A1AA" }}>
                 <span>{o.tp}</span>
@@ -1265,6 +1360,8 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
     </div>
   );
 }
+
+// ▲▲▲ 여기까지 복사 끝 ▼▼▼
 function MiniStat({ label, value, accent }) {
   return (
     <div style={{ flex: 1, background: "#161618", borderRadius: 10, padding: "10px 12px", border: "1px solid #1E1E22" }}>
@@ -1364,6 +1461,12 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
         <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <InfoCell label="물건 소재지" value={owner.addr} span />
+            <div style={{ gridColumn: "1 / -1", marginTop: 4, padding: "8px 12px", background: "#1A1A1E", borderRadius: 10, border: "1px solid #2A2A2E" }}>
+  <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 4 }}>연락처</p>
+  <a href={`tel:${owner.contact}`} style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
+    <span>📞 {owner.contact || "번호 미등록"}</span>
+  </a>
+</div>
             <InfoCell label="자산 유형" value={owner.tp} />
             <InfoCell label="대지면적" value={owner.area ? `${owner.area}㎡` : "-"} />
             <InfoCell label="전유면적" value={owner.privateArea ? `${owner.privateArea}㎡` : "-"} />
