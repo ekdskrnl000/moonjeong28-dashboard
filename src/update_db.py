@@ -1,7 +1,6 @@
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
-import numpy as np
 
 # 파이어베이스 연동
 CREDENTIAL_PATH = './firebase-key.json'
@@ -16,7 +15,6 @@ print("엑셀 파일을 읽는 중입니다...")
 df = pd.read_excel(EXCEL_PATH, sheet_name='통합', header=3)
 df.columns = df.columns.str.replace(' ', '').str.replace('\n', '')
 
-# ★ 1번 기능 핵심: 엑셀 병합 셀 해제 및 빈칸을 위쪽 값으로 채움 (ffill)
 df['연번'] = df['연번'].ffill()
 df['성명'] = df['성명'].ffill()
 if '연락처' in df.columns:
@@ -39,12 +37,10 @@ def merge_excel_to_firebase(dataframe):
     print("\n파이어베이스 데이터 병합을 시작합니다...")
     success_count = 0
 
-    # 연번(소유주)을 기준으로 데이터를 그룹화합니다.
     grouped = dataframe.groupby('연번')
 
     for sn_val, group in grouped:
         sn_str = str(sn_val).replace('.0', '').strip()
-        # ★ '조합원' 같은 글자나 빈칸이 들어오면 에러 없이 부드럽게 건너뜁니다.
         if not sn_str.isdigit():
             continue
             
@@ -58,7 +54,6 @@ def merge_excel_to_firebase(dataframe):
             addr_list = []
             total_area, total_private, total_asset = 0.0, 0.0, 0
             
-            # 해당 소유주가 가진 '모든 물건지'를 반복하며 주소와 면적을 합칩니다.
             for _, r in group.iterrows():
                 main_num = str(r.get('본번', '')).split('.')[0]
                 sub_num = str(r.get('부번', '')).split('.')[0]
@@ -66,6 +61,10 @@ def merge_excel_to_firebase(dataframe):
                 
                 bldg = str(r.get('건물명', '')).strip()
                 ho = str(r.get('호수', '')).replace('.0', '').strip()
+                
+                # ★ 가출한 호실 복구: 엑셀에 숫자만 있어도 '호'를 강제로 붙여줍니다!
+                if ho and ho != 'nan' and not ho.endswith('호'):
+                    ho += '호'
                 
                 addr_str = f"문정동 {jibun}"
                 if bldg and bldg != 'nan': addr_str += f" {bldg}"
@@ -78,7 +77,6 @@ def merge_excel_to_firebase(dataframe):
                 total_private += safe_float(r.get(private_area_col, 0)) if private_area_col else 0
                 total_asset += int(safe_float(r.get('종전추정가액', 0)))
 
-            # 주소들을 쉼표(,)로 예쁘게 연결합니다. (예: 문정동 28-1 401호, 문정동 28-1 402호)
             final_addr = ", ".join(addr_list)
             
             first_row = group.iloc[0]
