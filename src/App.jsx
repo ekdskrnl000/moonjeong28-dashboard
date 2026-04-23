@@ -517,8 +517,7 @@ export default function App() {
               </header>
 
               <main style={{ flex: 1, overflowY: "auto", padding: "0 16px 100px" }}>
-                {view === "dash" && <Dashboard owners={owners} stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} />}
-                {view === "cat" && <CategoryView stats={stats} catTab={catTab} setCatTab={setCatTab} />}
+{view === "dash" && <Dashboard owners={owners} stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} onSelectOwner={handleSelectLot} />}                {view === "cat" && <CategoryView stats={stats} catTab={catTab} setCatTab={setCatTab} />}
                 {view === "map" && <div className="mobile-only-map" style={{ height: '100%' }}><MapComponent owners={owners} mapFilter={filter} onSelectOwner={handleSelectLot} /></div>}
                 {view === "list" && <ListView owners={owners} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} onSelect={handleSelectLot} stats={stats} />}
               </main>
@@ -1040,7 +1039,7 @@ function DonutCard({ title, percent, target, sub, color, remainingText }) {
 
 
 // ▲▲▲ 여기까지 복사 끝 ▼▼▼
-function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setFilter, target }) {
+function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setFilter, target, onSelectOwner }) {
   const ownerData = [{ v: stats.ownerRate }, { v: 100 - stats.ownerRate }];
   const areaData = [{ v: stats.areaRate }, { v: 100 - stats.areaRate }];
 
@@ -1050,16 +1049,21 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
 
   const todayAgreedList = owners.filter(o => o.consentDate === todayStrDash);
   const missingDocList = owners.filter(o => o.agreed && (!o.idCopy || !o.privacyConsent));
+  // 1. App 컴포넌트 내부 todayMemos 로직 수정
   const todayMemos = [];
   owners.forEach(o => {
     if(o.memoHistory) {
       o.memoHistory.forEach(m => {
         if(m.date.startsWith(todayStrDot)) {
-          todayMemos.push({ ownerName: o.nm, sn: o.sn, ...m });
+          // ownerId: o.id 를 추가합니다.
+          todayMemos.push({ ownerName: o.nm, sn: o.sn, ownerId: o.id, ...m });
         }
       });
     }
   });
+
+  // 2. Dashboard 호출 부분 수정 (onSelectOwner 속성 추가)
+  // App 컴포넌트 return 안의 아래 코드를 찾아 onSelectOwner={handleSelectLot} 를 추가하세요.
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1168,7 +1172,7 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
         {todayMemos.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 150, overflowY: "auto" }}>
             {todayMemos.map((m, idx) => (
-              <div key={idx} style={{ background: "#2A2A2E", padding: "8px 10px", borderRadius: 6 }}>
+  <div key={idx} onClick={() => onSelectOwner(m.ownerId)} className="btn-press" style={{ background: "#2A2A2E", padding: "8px 10px", borderRadius: 6, cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#7B8CDE" }}>{m.ownerName} <span style={{color: "#9CA3AF", fontWeight:400}}>#{m.sn}</span></span>
                   <span style={{ fontSize: 9, color: "#9CA3AF" }}>{m.author}</span>
@@ -1372,6 +1376,57 @@ function MiniStat({ label, value, accent }) {
 }
 
 function DetailView({ owner, onBack, updateOwner, currentUser }) {
+  // ★ 연락처 다중 입력 및 자동 하이픈(-) 포맷팅을 위한 상태 관리
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [contactList, setContactList] = useState([]);
+
+  useEffect(() => {
+    if (owner.contact) {
+      setContactList(owner.contact.split('\n'));
+    } else {
+      setContactList([""]);
+    }
+    setIsEditingContact(false);
+  }, [owner.contact]);
+
+  // 자동 포맷팅 함수: 숫자만 골라내어 길이에 맞게 하이픈 삽입
+  const formatPhone = (val) => {
+    let cleaned = val.replace(/[^0-9]/g, '');
+    if (!cleaned) return '';
+    if (cleaned.startsWith('02')) {
+      if (cleaned.length <= 2) return cleaned;
+      if (cleaned.length <= 5) return `${cleaned.slice(0, 2)}-${cleaned.slice(2)}`;
+      if (cleaned.length <= 9) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 5)}-${cleaned.slice(5)}`;
+      return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 6)}-${cleaned.slice(6, 10)}`;
+    } else {
+      if (cleaned.length <= 3) return cleaned;
+      if (cleaned.length <= 7) return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+      if (cleaned.length <= 10) return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7, 11)}`;
+    }
+  };
+
+  const handleContactChange = (index, value) => {
+    const newList = [...contactList];
+    newList[index] = formatPhone(value);
+    setContactList(newList);
+  };
+
+  const addContactField = () => {
+    setContactList([...contactList, ""]);
+  };
+
+  const removeContactField = (index) => {
+    const newList = contactList.filter((_, i) => i !== index);
+    if (newList.length === 0) newList.push("");
+    setContactList(newList);
+  };
+
+  const handleContactSave = () => {
+    const finalString = contactList.filter(c => c.trim() !== "").join('\n');
+    updateOwner(owner.id, { contact: finalString });
+    setIsEditingContact(false);
+  };
   const [assetStr, setAssetStr] = useState(String(owner.asset));
   const [ratio, setRatio] = useState(RATIO);
   const [marketPP, setMarketPP] = useState(6000);
@@ -1462,11 +1517,50 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <InfoCell label="물건 소재지" value={owner.addr} span />
             <div style={{ gridColumn: "1 / -1", marginTop: 4, padding: "8px 12px", background: "#1A1A1E", borderRadius: 10, border: "1px solid #2A2A2E" }}>
-  <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 4 }}>연락처</p>
-  <a href={`tel:${owner.contact}`} style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
-    <span>📞 {owner.contact || "번호 미등록"}</span>
-  </a>
-</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+      <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700 }}>연락처</p>
+      {isEditingContact ? (
+         <div style={{ display: "flex", gap: 4 }}>
+           <button onClick={handleContactSave} style={{ fontSize: 10, background: "#3B82F6", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontWeight: 700 }}>저장</button>
+           <button onClick={() => setIsEditingContact(false)} style={{ fontSize: 10, background: "#3A3A40", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>취소</button>
+         </div>
+      ) : (
+         <button onClick={() => setIsEditingContact(true)} style={{ fontSize: 10, background: "transparent", color: "#9CA3AF", border: "1px solid #3A3A40", borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>수정</button>
+      )}
+    </div>
+    
+    {isEditingContact ? (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {contactList.map((contact, idx) => (
+          <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input 
+              value={contact} 
+              onChange={(e) => handleContactChange(idx, e.target.value)} 
+              placeholder="010-0000-0000"
+              style={{ flex: 1, background: "#0C0C0E", border: "1px solid #3A3A40", color: "#fff", padding: "8px", borderRadius: 6, fontSize: 14, outline: "none", letterSpacing: 1 }}
+              autoFocus={idx === 0}
+            />
+            <button onClick={() => removeContactField(idx)} style={{ background: "#2A2A2E", border: "none", borderRadius: 6, color: "#9CA3AF", width: 32, height: 35, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>✕</button>
+          </div>
+        ))}
+        <button onClick={addContactField} style={{ background: "transparent", border: "1px dashed #3A3A40", color: "#9CA3AF", padding: "6px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 2 }}>
+          + 번호 추가
+        </button>
+      </div>
+    ) : (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {owner.contact ? owner.contact.split('\n').map((num, i) => (
+          <a key={i} href={`tel:${num}`} style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
+            <span>📞 {num}</span>
+          </a>
+        )) : (
+          <span style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", display: "flex", alignItems: "center", gap: 6 }}>
+            <span>📞 번호 미등록</span>
+          </span>
+        )}
+      </div>
+    )}
+  </div>
             <InfoCell label="자산 유형" value={owner.tp} />
             <InfoCell label="대지면적" value={owner.area ? `${owner.area}㎡` : "-"} />
             <InfoCell label="전유면적" value={owner.privateArea ? `${owner.privateArea}㎡` : "-"} />

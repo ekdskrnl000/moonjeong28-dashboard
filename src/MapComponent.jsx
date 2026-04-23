@@ -27,8 +27,8 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
   const [infoWindowData, setInfoWindowData] = useState(null);
   const [lotCenters, setLotCenters] = useState([]);
   
-  // ★ 현재 지도의 줌 레벨을 추적하는 상태 추가
   const [currentZoom, setCurrentZoom] = useState(19);
+  const [areaOpacity, setAreaOpacity] = useState(0.35); // ★ 초기값을 기존에 보시던 편안한 농도(0.35)로 맞췄습니다.
 
   const [statusFilter, setStatusFilter] = useState("전체");
   const [catFilter, setCatFilter] = useState("전체");
@@ -48,7 +48,11 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
       if (feature.getGeometry().getType() === 'Point') return { visible: false };
 
       const layerName = feature.getProperty('layer');
-      if (layerName === '사업지') return { strokeColor: '#FF2A55', strokeWeight: 3, fillOpacity: 0, clickable: false };
+      
+      // ★ 외곽선만 놔두고, 가짜 배경색은 0으로 완전히 제거했습니다!
+      if (layerName === '사업지') {
+        return { strokeColor: '#FF2A55', strokeWeight: 3, fillOpacity: 0, clickable: false };
+      }
 
       const rawLabel = feature.getProperty('label') || "";
       const jibun = rawLabel.replace(/[대도]/g, '').trim();
@@ -65,7 +69,7 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
         : "기타";
 
       let fillColor = '#3A3A40'; 
-      let fillOpacity = 0.35; 
+      let fillOpacity = areaOpacity; // ★ 슬라이더 값을 각 필지(땅)의 투명도에 직접 꽂아 넣습니다!
       
       if (totalCount > 0) {
         if (agreedCount === totalCount) { fillColor = '#22C55E'; }
@@ -87,7 +91,7 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
       let isVisible = isStatusMatch && isCatMatch;
       
       if (!isVisible) {
-        fillOpacity = 0.05;
+        fillOpacity = areaOpacity === 0 ? 0 : 0.05;
       }
 
       let finalStrokeWeight = isSelected ? 4 : 1;
@@ -96,12 +100,12 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
       
       if (isSelected && isVisible) {
         fillColor = '#3B82F6'; 
-        fillOpacity = 0.7;
+        fillOpacity = Math.min(0.8, areaOpacity + 0.3);
       }
 
       return { strokeColor: finalStrokeColor, strokeWeight: finalStrokeWeight, strokeOpacity: finalStrokeOpacity, fillColor, fillOpacity, zIndex: isSelected ? 100 : 1, title: jibun };
     });
-  }, [statusFilter, catFilter, infoWindowData]);
+  }, [statusFilter, catFilter, infoWindowData, areaOpacity]);
 
   const onLoad = useCallback((map) => {
     mapRef.current = map;
@@ -118,9 +122,8 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
             const cleanJibun = f.properties.label.replace(/[대도]/g, '').trim();
             centers.push({ 
               jibun: cleanJibun, 
-              // lat(위도)는 위아래, lng(경도)는 좌우를 뜻합니다.
-              lat: f.geometry.coordinates[1] - 0.00001, // (선택) 마커를 살짝 아래로 내림
-              lng: f.geometry.coordinates[0] + 0.00004  // ★ 핵심: 마커를 우측으로 살짝 이동!
+              lat: f.geometry.coordinates[1] - 0.00001, 
+              lng: f.geometry.coordinates[0] + 0.00004  
             });
           }
         });
@@ -148,14 +151,13 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
 
   const onUnmount = useCallback(() => { mapRef.current = null; }, []);
 
-  // ★ 지도를 확대/축소할 때마다 현재 줌 레벨을 기록하는 함수
   const handleZoomChanged = useCallback(() => {
     if (mapRef.current) {
       setCurrentZoom(mapRef.current.getZoom());
     }
   }, []);
 
-  useEffect(() => { if (mapRef.current) applyStyle(mapRef.current); }, [owners, statusFilter, catFilter, infoWindowData, applyStyle]);
+  useEffect(() => { if (mapRef.current) applyStyle(mapRef.current); }, [owners, statusFilter, catFilter, infoWindowData, areaOpacity, applyStyle]);
 
   if (!isLoaded) return <div style={{ color: 'white', padding: '20px' }}>구글 지도 로딩중... 기다려주세요!</div>;
 
@@ -192,12 +194,23 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
         </div>
       </div>
 
-      <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10, display: 'flex', gap: '8px', background: '#161618', padding: '6px', borderRadius: '8px', border: '1px solid #2A2A2E', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-        <button onClick={() => setMapTypeId('roadmap')} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', fontWeight: 700, cursor: 'pointer', background: mapTypeId === 'roadmap' ? '#FF2A55' : 'transparent', color: mapTypeId === 'roadmap' ? '#FFF' : '#9CA3AF' }}>일반</button>
-        <button onClick={() => setMapTypeId('satellite')} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', fontWeight: 700, cursor: 'pointer', background: mapTypeId === 'satellite' ? '#FF2A55' : 'transparent', color: mapTypeId === 'satellite' ? '#FFF' : '#9CA3AF' }}>위성</button>
+      <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', background: '#161618', padding: '6px', borderRadius: '8px', border: '1px solid #2A2A2E', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+          <button onClick={() => setMapTypeId('roadmap')} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', fontWeight: 700, cursor: 'pointer', background: mapTypeId === 'roadmap' ? '#FF2A55' : 'transparent', color: mapTypeId === 'roadmap' ? '#FFF' : '#9CA3AF' }}>일반</button>
+          <button onClick={() => setMapTypeId('satellite')} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', fontWeight: 700, cursor: 'pointer', background: mapTypeId === 'satellite' ? '#FF2A55' : 'transparent', color: mapTypeId === 'satellite' ? '#FFF' : '#9CA3AF' }}>위성</button>
+        </div>
+        
+        <div style={{ background: '#161618', padding: '10px 12px', borderRadius: '8px', border: '1px solid #2A2A2E', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '700' }}>사업지 투명도 조절</span>
+          <input 
+            type="range" min="0" max="0.8" step="0.05" 
+            value={areaOpacity} 
+            onChange={(e) => setAreaOpacity(parseFloat(e.target.value))} 
+            style={{ width: '100%', cursor: 'pointer', accentColor: '#FF2A55' }} 
+          />
+        </div>
       </div>
 
-      {/* ★ onZoomChanged 이벤트를 추가하여 줌 레벨을 추적합니다 */}
       <GoogleMap 
         mapContainerStyle={containerStyle} 
         center={center} 
@@ -239,32 +252,28 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
           if (primaryCat === "공동주택") boxColor = '#854D0E'; 
           else if (primaryCat === "상가/기타" || primaryCat === "기타") boxColor = '#1E3A8A'; 
 
-          // ★ 줌 레벨에 따른 크기(Scale) 및 텍스트 표시 여부 계산
           const markerScale = currentZoom >= 19 ? 1 : 
                               currentZoom === 18 ? 0.8 : 
-                              currentZoom === 17 ? 0.6 : 0.4; // 16 이하일 땐 아주 작게
+                              currentZoom === 17 ? 0.6 : 0.4; 
           
-          // 너무 멀어지면 지번(글씨)이나 동의율 배지를 숨겨서 깔끔하게 만듭니다.
           const showText = currentZoom >= 18; 
           const showBadge = currentZoom >= 17;
 
           return (
             <OverlayView key={lot.jibun} position={{ lat: lot.lat, lng: lot.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-  <div 
-    onClick={(e) => {
-      e.stopPropagation();
-      setInfoWindowData({ position: { lat: lot.lat, lng: lot.lng }, jibun: lot.jibun, displayName: extractDisplayName(lot.jibun, ownersInLot), ownersInLot });
-    }}
-    style={{ 
-      // ★ 픽셀 이동(SHIFT)을 완전히 제거하고 정중앙(-50%)에 완벽히 고정합니다.
-      transform: `translate(-50%, -50%) scale(${markerScale})`, 
-      display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', pointerEvents: 'auto',
-      zIndex: isSelected ? 100 : 1,
-      transformOrigin: 'center center', // ★ 축소될 때도 제자리에서 작아지도록 중심점 변경
-      transition: 'transform 0.2s ease-out' 
-    }}
-  >
-                {/* 지번 텍스트 (줌 아웃 시 숨김) */}
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInfoWindowData({ position: { lat: lot.lat, lng: lot.lng }, jibun: lot.jibun, displayName: extractDisplayName(lot.jibun, ownersInLot), ownersInLot });
+                }}
+                style={{ 
+                  transform: `translate(-50%, -50%) scale(${markerScale})`, 
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', pointerEvents: 'auto',
+                  zIndex: isSelected ? 100 : 1,
+                  transformOrigin: 'center center', 
+                  transition: 'transform 0.2s ease-out' 
+                }}
+              >
                 {showText && (
                   <span style={{ whiteSpace: 'nowrap', fontSize: '13px', fontWeight: '800', color: '#FFF', textShadow: '0px 1px 3px rgba(0,0,0,0.9)', marginBottom: '4px' }}>
                     {lot.jibun}
@@ -272,14 +281,12 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
                 )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.8))', animation: isSelected ? 'mapPulseGlow 1.5s infinite' : 'none', borderRadius: '4px' }}>
-                  {/* 중앙 용도 아이콘 */}
                   <svg width="28" height="28" viewBox="0 0 24 24">
                     {primaryCat === "단독/다가구" && <g><rect x="4" y="10" width="16" height="12" rx="1" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><polygon points="2,10 12,2 22,10" fill={boxColor} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" /></g>}
                     {primaryCat === "공동주택" && <g><rect x="4" y="4" width="16" height="18" rx="2" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><rect x="8" y="8" width="3" height="3" fill="#fff" rx="0.5" /><rect x="13" y="8" width="3" height="3" fill="#fff" rx="0.5" /><rect x="8" y="14" width="3" height="3" fill="#fff" rx="0.5" /><rect x="13" y="14" width="3" height="3" fill="#fff" rx="0.5" /></g>}
                     {(primaryCat === "상가/기타" || primaryCat === "기타") && <g><rect x="3" y="10" width="18" height="12" rx="1" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><polygon points="2,10 4,4 20,4 22,10" fill={boxColor} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" /><line x1="8" y1="10" x2="8" y2="15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" /><line x1="16" y1="10" x2="16" y2="15" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" /></g>}
                   </svg>
                   
-                  {/* 동의율 배지 (줌 아웃 시 숨김) */}
                   {showBadge && (
                     <span style={{ fontSize: '11px', fontWeight: '800', color: '#FFF', marginTop: '2px', background: boxColor, padding: '0px 4px', borderRadius: '4px', border: '1px solid #fff' }}>
                       {agreedCount}/{totalCount}
@@ -302,7 +309,6 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
                 </div>
                 <button onClick={() => setInfoWindowData(null)} style={{ background: "none", border: "none", fontSize: "20px", fontWeight: "700", color: "#9CA3AF", cursor: "pointer", padding: 0 }}>✕</button>
               </div>
-              {/* ★ 터치 및 스크롤 이벤트가 지도로 빠져나가지 않도록 방어벽(stopPropagation)을 추가합니다. */}
               <ul 
                 style={{ listStyle: "none", padding: 0, margin: "16px 0 0 0", maxHeight: "250px", overflowY: "auto", overscrollBehavior: "contain" }}
                 onWheel={(e) => e.stopPropagation()}
