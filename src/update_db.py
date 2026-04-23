@@ -1,6 +1,7 @@
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
+import re
 
 # 파이어베이스 연동
 CREDENTIAL_PATH = './firebase-key.json'
@@ -26,17 +27,40 @@ private_area_col = next((col for col in df.columns if '전유면적' in col or '
 
 def format_contact(val):
     if pd.isna(val) or str(val).strip() == "" or str(val).lower() == 'nan': return ""
-    s = str(val).strip()
-    if s.endswith('.0'): s = s[:-2]
-    if s.isdigit():
-        if len(s) == 10 and s.startswith('10'): s = '0' + s
-        if len(s) == 11: s = f"{s[:3]}-{s[3:7]}-{s[7:]}"
-    return s
+    lines = str(val).split('\n')
+    result_lines = []
+    
+    for line in lines:
+        s = line.strip()
+        if s.endswith('.0'): s = s[:-2]
+        
+        memo_match = re.search(r'\((.*?)\)', s)
+        memo = f"({memo_match.group(1)})" if memo_match else ""
+        
+        num_only = re.sub(r'[^0-9]', '', s)
+        
+        if not num_only:
+            if s: result_lines.append(s)
+            continue
+            
+        if len(num_only) == 10 and num_only.startswith('10'):
+            num_only = '0' + num_only
+            
+        formatted_num = num_only
+        if len(num_only) == 11:
+            formatted_num = f"{num_only[:3]}-{num_only[3:7]}-{num_only[7:]}"
+        elif len(num_only) == 10:
+            if num_only.startswith('02'): formatted_num = f"{num_only[:2]}-{num_only[2:6]}-{num_only[6:]}"
+            else: formatted_num = f"{num_only[:3]}-{num_only[3:6]}-{num_only[6:]}"
+            
+        if memo: result_lines.append(f"{formatted_num} {memo}")
+        else: result_lines.append(formatted_num)
+        
+    return '\n'.join(result_lines)
 
 def merge_excel_to_firebase(dataframe):
     print("\n파이어베이스 데이터 병합을 시작합니다...")
     success_count = 0
-
     grouped = dataframe.groupby('연번')
 
     for sn_val, group in grouped:
@@ -62,13 +86,15 @@ def merge_excel_to_firebase(dataframe):
                 bldg = str(r.get('건물명', '')).strip()
                 ho = str(r.get('호수', '')).replace('.0', '').strip()
                 
-                # ★ 가출한 호실 복구: 엑셀에 숫자만 있어도 '호'를 강제로 붙여줍니다!
-                if ho and ho != 'nan' and not ho.endswith('호'):
+                # ★ 단독주택 '0호' 방지 로직: 0이거나 비어있으면 아예 무시합니다!
+                if ho in ['0', 'nan', '']:
+                    ho = ""
+                elif not ho.endswith('호'):
                     ho += '호'
                 
                 addr_str = f"문정동 {jibun}"
                 if bldg and bldg != 'nan': addr_str += f" {bldg}"
-                if ho and ho != 'nan': addr_str += f" {ho}"
+                if ho: addr_str += f" {ho}"
                 
                 if addr_str not in addr_list:
                     addr_list.append(addr_str)

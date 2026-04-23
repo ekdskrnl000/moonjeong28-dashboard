@@ -1376,20 +1376,25 @@ function MiniStat({ label, value, accent }) {
 }
 
 function DetailView({ owner, onBack, updateOwner, currentUser }) {
-  // ★ 연락처 다중 입력 및 자동 하이픈(-) 포맷팅을 위한 상태 관리
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [contactList, setContactList] = useState([]);
 
   useEffect(() => {
     if (owner.contact) {
-      setContactList(owner.contact.split('\n'));
+      const parsed = owner.contact.split('\n').map(line => {
+        const match = line.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+        return {
+          num: match ? match[1].trim() : line.trim(),
+          label: match && match[2] ? match[2].trim() : ""
+        };
+      });
+      setContactList(parsed);
     } else {
-      setContactList([""]);
+      setContactList([{ num: "", label: "" }]);
     }
     setIsEditingContact(false);
   }, [owner.contact]);
 
-  // 자동 포맷팅 함수: 숫자만 골라내어 길이에 맞게 하이픈 삽입
   const formatPhone = (val) => {
     let cleaned = val.replace(/[^0-9]/g, '');
     if (!cleaned) return '';
@@ -1406,29 +1411,41 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
     }
   };
 
-  const handleContactChange = (index, value) => {
+  const handleContactChange = (index, field, value) => {
     const newList = [...contactList];
-    newList[index] = formatPhone(value);
+    if (field === 'num') {
+      newList[index].num = formatPhone(value);
+    } else {
+      newList[index].label = value;
+    }
     setContactList(newList);
   };
 
   const addContactField = () => {
-    setContactList([...contactList, ""]);
+    setContactList([...contactList, { num: "", label: "" }]);
   };
 
   const removeContactField = (index) => {
     const newList = contactList.filter((_, i) => i !== index);
-    if (newList.length === 0) newList.push("");
+    if (newList.length === 0) newList.push({ num: "", label: "" });
     setContactList(newList);
   };
 
   const handleContactSave = () => {
-    const finalString = contactList.filter(c => c.trim() !== "").join('\n');
+    const finalString = contactList
+      .filter(c => c.num.trim() !== "")
+      .map(c => {
+        const numStr = c.num.trim();
+        const labelStr = c.label.trim();
+        return labelStr ? `${numStr} (${labelStr})` : numStr;
+      })
+      .join('\n');
     updateOwner(owner.id, { contact: finalString });
     setIsEditingContact(false);
   };
+
   const [assetStr, setAssetStr] = useState(String(owner.asset));
-  const [ratio, setRatio] = useState(RATIO);
+  const [ratio, setRatio] = useState(152.19);
   const [marketPP, setMarketPP] = useState(6000);
   const [optIdx, setOptIdx] = useState(0);
   const [disposition, setDisposition] = useState(owner.disposition || "");
@@ -1438,8 +1455,8 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
   const rights = Math.floor(asset * ratio / 100);
 
   const options = useMemo(() => {
-    const prices = { "46": PRICE_46, "59": PRICE_59, "84": PRICE_84 };
-    const areas = { "46": AREA_46, "59": AREA_59, "84": AREA_84 };
+    const prices = { "46": 866277500, "59": 1135557500, "84": 1539477500 };
+    const areas = { "46": 18.53, "59": 24.29, "84": 32.93 };
     const combos = [["46", "46"], ["46", "59"], ["59", "59"], ["46", "84"], ["59", "84"]];
     
     const affordable = combos.filter(c => asset >= prices[c[0]] + prices[c[1]]);
@@ -1454,10 +1471,10 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
         });
       });
     } else {
-      if (asset < PRICE_46) result = [{ label: "46타입", price: PRICE_46, pyeong: AREA_46 }];
-      else if (asset < PRICE_59) result = [{ label: "46타입", price: PRICE_46, pyeong: AREA_46 }, { label: "59타입", price: PRICE_59, pyeong: AREA_59 }];
-      else if (asset < PRICE_84) result = [{ label: "59타입", price: PRICE_59, pyeong: AREA_59 }, { label: "84타입", price: PRICE_84, pyeong: AREA_84 }];
-      else result = [{ label: "84타입", price: PRICE_84, pyeong: AREA_84 }];
+      if (asset < 866277500) result = [{ label: "46타입", price: 866277500, pyeong: 18.53 }];
+      else if (asset < 1135557500) result = [{ label: "46타입", price: 866277500, pyeong: 18.53 }, { label: "59타입", price: 1135557500, pyeong: 24.29 }];
+      else if (asset < 1539477500) result = [{ label: "59타입", price: 1135557500, pyeong: 24.29 }, { label: "84타입", price: 1539477500, pyeong: 32.93 }];
+      else result = [{ label: "84타입", price: 1539477500, pyeong: 32.93 }];
     }
     return result;
   }, [asset]);
@@ -1479,13 +1496,11 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
     });
   };
 
-  // [추가된 로직] 필수 서류(신분증, 개인정보) O/X 상태 업데이트 함수
   const toggleDoc = (docType, status) => {
     updateOwner(owner.id, { [docType]: status });
   };
 
   const handleSaveDisposition = (val) => {
-// ...
     setDisposition(val);
     updateOwner(owner.id, { disposition: val });
   };
@@ -1500,11 +1515,25 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
     setNewMemo("");
   };
 
+  const fmt = (n) => {
+    if (n === undefined || isNaN(n)) return "0원";
+    const neg = n < 0;
+    const a = Math.abs(Math.round(n));
+    const eok = Math.floor(a / 1e8);
+    const man = Math.floor((a % 1e8) / 1e4);
+    let r = neg ? "-" : "";
+    if (eok > 0) r += `${eok}억`;
+    if (man > 0) r += ` ${man.toLocaleString()}만`;
+    if (!eok && !man) r = "0";
+    return r + "원";
+  };
+  const fmtNum = (n) => Math.round(n).toLocaleString();
+
   return (
     <div style={{ width: "100%", fontFamily: "'Pretendard', -apple-system, sans-serif", background: "#0C0C0E", color: "#E8E6E1", minHeight: "100vh", maxWidth: 480, margin: "0 auto" }}>
       <header style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, background: "#0C0C0E", zIndex: 50, borderBottom: "1px solid #1E1E22" }}>
         <button onClick={onBack} className="btn-press" style={{ background: "none", border: "none", color: "#E8E6E1", cursor: "pointer", padding: 4 }}>
-          <IconBack size={22} />
+          <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5 M12 19l-7-7 7-7" /></svg>
         </button>
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 800 }}>{owner.nm}</h1>
@@ -1515,62 +1544,93 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
       <div style={{ padding: "12px 16px 40px", display: "flex", flexDirection: "column", gap: 12 }}>
         <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <InfoCell label="물건 소재지" value={owner.addr} span />
+            <div style={{ gridColumn: "1 / -1" }}>
+              <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>물건 소재지</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{owner.addr || "-"}</p>
+            </div>
+            
             <div style={{ gridColumn: "1 / -1", marginTop: 4, padding: "8px 12px", background: "#1A1A1E", borderRadius: 10, border: "1px solid #2A2A2E" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-      <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700 }}>연락처</p>
-      {isEditingContact ? (
-         <div style={{ display: "flex", gap: 4 }}>
-           <button onClick={handleContactSave} style={{ fontSize: 10, background: "#3B82F6", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontWeight: 700 }}>저장</button>
-           <button onClick={() => setIsEditingContact(false)} style={{ fontSize: 10, background: "#3A3A40", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>취소</button>
-         </div>
-      ) : (
-         <button onClick={() => setIsEditingContact(true)} style={{ fontSize: 10, background: "transparent", color: "#9CA3AF", border: "1px solid #3A3A40", borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>수정</button>
-      )}
-    </div>
-    
-    {isEditingContact ? (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {contactList.map((contact, idx) => (
-          <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <input 
-              value={contact} 
-              onChange={(e) => handleContactChange(idx, e.target.value)} 
-              placeholder="010-0000-0000"
-              style={{ flex: 1, background: "#0C0C0E", border: "1px solid #3A3A40", color: "#fff", padding: "8px", borderRadius: 6, fontSize: 14, outline: "none", letterSpacing: 1 }}
-              autoFocus={idx === 0}
-            />
-            <button onClick={() => removeContactField(idx)} style={{ background: "#2A2A2E", border: "none", borderRadius: 6, color: "#9CA3AF", width: 32, height: 35, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>✕</button>
-          </div>
-        ))}
-        <button onClick={addContactField} style={{ background: "transparent", border: "1px dashed #3A3A40", color: "#9CA3AF", padding: "6px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 2 }}>
-          + 번호 추가
-        </button>
-      </div>
-    ) : (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {owner.contact ? owner.contact.split('\n').map((num, i) => (
-          <a key={i} href={`tel:${num}`} style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
-            <span>📞 {num}</span>
-          </a>
-        )) : (
-          <span style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", display: "flex", alignItems: "center", gap: 6 }}>
-            <span>📞 번호 미등록</span>
-          </span>
-        )}
-      </div>
-    )}
-  </div>
-            <InfoCell label="자산 유형" value={owner.tp} />
-            <InfoCell label="대지면적" value={owner.area ? `${owner.area}㎡` : "-"} />
-            <InfoCell label="전유면적" value={owner.privateArea ? `${owner.privateArea}㎡` : "-"} />
-            <InfoCell label="거주여부" value={owner.residing ? "거주중" : "비거주"} />
-            <InfoCell label="연령대" value={owner.age || "-"} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700 }}>연락처</p>
+                {isEditingContact ? (
+                   <div style={{ display: "flex", gap: 4 }}>
+                     <button onClick={handleContactSave} style={{ fontSize: 10, background: "#3B82F6", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontWeight: 700 }}>저장</button>
+                     <button onClick={() => setIsEditingContact(false)} style={{ fontSize: 10, background: "#3A3A40", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>취소</button>
+                   </div>
+                ) : (
+                   <button onClick={() => setIsEditingContact(true)} style={{ fontSize: 10, background: "transparent", color: "#9CA3AF", border: "1px solid #3A3A40", borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>수정</button>
+                )}
+              </div>
+              
+              {isEditingContact ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {contactList.map((contact, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input 
+                        value={contact.num} 
+                        onChange={(e) => handleContactChange(idx, 'num', e.target.value)} 
+                        placeholder="010-0000-0000"
+                        style={{ flex: 1.5, background: "#0C0C0E", border: "1px solid #3A3A40", color: "#fff", padding: "8px", borderRadius: 6, fontSize: 14, outline: "none", letterSpacing: 1 }}
+                        autoFocus={idx === 0}
+                      />
+                      <input 
+                        value={contact.label} 
+                        onChange={(e) => handleContactChange(idx, 'label', e.target.value)} 
+                        placeholder="관계/메모"
+                        style={{ flex: 1, background: "#0C0C0E", border: "1px solid #3A3A40", color: "#9CA3AF", padding: "8px", borderRadius: 6, fontSize: 13, outline: "none" }}
+                      />
+                      <button onClick={() => removeContactField(idx)} style={{ background: "#2A2A2E", border: "none", borderRadius: 6, color: "#9CA3AF", width: 32, height: 35, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>✕</button>
+                    </div>
+                  ))}
+                  <button onClick={addContactField} style={{ background: "transparent", border: "1px dashed #3A3A40", color: "#9CA3AF", padding: "6px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 2 }}>
+                    + 번호 추가
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {owner.contact ? owner.contact.split('\n').map((line, i) => {
+                    const match = line.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+                    const num = match ? match[1].trim() : line;
+                    const label = match && match[2] ? match[2].trim() : "";
+                    return (
+                      <a key={i} href={`tel:${num.replace(/[^0-9]/g, '')}`} style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>📞 {num}</span>
+                        {label && <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 600 }}>({label})</span>}
+                      </a>
+                    );
+                  }) : (
+                    <span style={{ fontSize: 15, fontWeight: 800, color: "#3B82F6", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>📞 번호 미등록</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>자산 유형</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{owner.tp || "-"}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>대지면적</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{owner.area ? `${owner.area}㎡` : "-"}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>전유면적</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{owner.privateArea ? `${owner.privateArea}㎡` : "-"}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>거주여부</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{owner.residing ? "거주중" : "비거주"}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>연령대</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#E8E6E1" }}>{owner.age || "-"}</p>
+            </div>
           </div>
         </section>
 
         <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22", display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* 1. 조합설립 동의 여부 */}
           <div>
             <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>조합설립 동의 여부</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -1586,7 +1646,6 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
 
           <div style={{ height: 1, background: "#1E1E22" }} />
 
-          {/* 2. 필수 서류 제출 확인 */}
           <div>
             <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>필수 서류 제출 확인</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1618,8 +1677,21 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <InputRow label="종전자산 추정가액 (A)" value={Number(assetStr.replace(/[^0-9]/g, "")).toLocaleString()} onChange={e => setAssetStr(e.target.value.replace(/[^0-9]/g, ""))} suffix="원" note={fmt(asset)} />
-            <InputRow label="추정 비례율 (B)" value={ratio} step="0.01" onChange={e => setRatio(Number(e.target.value) || 0)} suffix="%" type="number" />
+            <div>
+              <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 6 }}>종전자산 추정가액 (A)</p>
+              <div style={{ position: "relative" }}>
+                <input type="text" value={Number(assetStr.replace(/[^0-9]/g, "")).toLocaleString()} onChange={e => setAssetStr(e.target.value.replace(/[^0-9]/g, ""))} style={{ width: "100%", padding: "12px 40px 12px 12px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#E8E6E1", fontSize: 15, fontWeight: 700, textAlign: "right", outline: "none" }} />
+                <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: 12 }}>원</span>
+              </div>
+              <p style={{ fontSize: 10, color: "#C8956C", textAlign: "right", marginTop: 3 }}>{fmt(asset)}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 6 }}>추정 비례율 (B)</p>
+              <div style={{ position: "relative" }}>
+                <input type="number" step="0.01" value={ratio} onChange={e => setRatio(Number(e.target.value) || 0)} style={{ width: "100%", padding: "12px 40px 12px 12px", background: "#1E1E22", border: "1px solid #2A2A2E", borderRadius: 10, color: "#E8E6E1", fontSize: 15, fontWeight: 700, textAlign: "right", outline: "none" }} />
+                <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: 12 }}>%</span>
+              </div>
+            </div>
           </div>
 
           <div style={{ marginTop: 16, background: "#1E1E22", borderRadius: 12, padding: 16 }}>
@@ -1642,9 +1714,26 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
           </div>
 
           <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-            <ResultRow label="조합원 분양가 (D)" value={fmtNum(opt.price)} sub={fmt(opt.price)} note={`${opt.label} 기준`} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>조합원 분양가 (D)</p>
+                <p style={{ fontSize: 10, color: "#A1A1AA", marginTop: 2 }}>{opt.label} 기준</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: "#E8E6E1" }}>{fmtNum(opt.price)}<span style={{ fontSize: 11, color: "#9CA3AF" }}> 원</span></p>
+                <p style={{ fontSize: 10, color: "#A1A1AA" }}>약 {fmt(opt.price)}</p>
+              </div>
+            </div>
             <div style={{ height: 1, background: "#1E1E22" }} />
-            <ResultRow label={contribution > 0 ? "추정 분담금 (D-C)" : "추정 환급금 (C-D)"} value={(contribution > 0 ? "" : "-") + fmtNum(Math.abs(contribution))} sub={fmt(contribution)} accent={contribution > 0 ? "#E05252" : "#5BA87F"} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>{contribution > 0 ? "추정 분담금 (D-C)" : "추정 환급금 (C-D)"}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: contribution > 0 ? "#E05252" : "#5BA87F" }}>{(contribution > 0 ? "" : "-") + fmtNum(Math.abs(contribution))}<span style={{ fontSize: 11, color: "#9CA3AF" }}> 원</span></p>
+                <p style={{ fontSize: 10, color: "#A1A1AA" }}>약 {fmt(contribution)}</p>
+              </div>
+            </div>
             <div style={{ height: 1, background: "#1E1E22" }} />
             
             <div>
@@ -1673,18 +1762,32 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
             </div>
 
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 24, height: 160, padding: "0 16px", background: "#1A1A1E", borderRadius: 12, paddingTop: 16, paddingBottom: 12 }}>
-              <BarCol label="종전가액" value={asset} max={marketVal} color="#9CA3AF" />
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: "0 0 50px" }}>
+                <div style={{ width: 36, background: "#2A2A2E", borderRadius: "6px 6px 0 0", height: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
+                  <div style={{ height: `${Math.max(20, (asset / marketVal) * 100)}%`, background: "#9CA3AF", borderRadius: "6px 6px 0 0", transition: "height 0.6s ease", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  </div>
+                </div>
+                <p style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textAlign: "center" }}>종전가액</p>
+                <p style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700 }}>{fmt(asset)}</p>
+              </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
                 <p style={{ fontSize: 18, fontWeight: 800, color: "#7B8CDE" }}>+{gainRate}%</p>
                 <p style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{fmt(totalGain)}</p>
               </div>
-              <BarCol label="예상시세" value={marketVal} max={marketVal} color="#5BA87F" />
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: "0 0 50px" }}>
+                <div style={{ width: 36, background: "#2A2A2E", borderRadius: "6px 6px 0 0", height: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
+                  <div style={{ height: `100%`, background: "#5BA87F", borderRadius: "6px 6px 0 0", transition: "height 0.6s ease", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  </div>
+                </div>
+                <p style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textAlign: "center" }}>예상시세</p>
+                <p style={{ fontSize: 9, color: "#5BA87F", fontWeight: 700 }}>{fmt(marketVal)}</p>
+              </div>
             </div>
           </div>
         </section>
 
         <section style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <div style={{ width: 3, height: 16, background: "#7B8CDE", borderRadius: 2 }} />
             <p style={{ fontSize: 14, fontWeight: 700 }}>상담 메모</p>
           </div>
@@ -1707,7 +1810,6 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
           <div>
             <p style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, marginBottom: 6 }}>상담 기록</p>
             
-            {/* 누적된 메모 히스토리 렌더링 */}
             {owner.memoHistory && owner.memoHistory.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, maxHeight: 200, overflowY: "auto" }}>
                 {owner.memoHistory.map(m => (
@@ -1722,7 +1824,6 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
               </div>
             )}
 
-            {/* 새 메모 입력 및 등록 */}
             <div style={{ position: "relative" }}>
               <textarea 
                 value={newMemo} 
