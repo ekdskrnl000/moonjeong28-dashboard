@@ -1040,30 +1040,31 @@ function DonutCard({ title, percent, target, sub, color, remainingText }) {
 
 // ▲▲▲ 여기까지 복사 끝 ▼▼▼
 function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setFilter, target, onSelectOwner }) {
-  const ownerData = [{ v: stats.ownerRate }, { v: 100 - stats.ownerRate }];
-  const areaData = [{ v: stats.areaRate }, { v: 100 - stats.areaRate }];
-
   const today = new Date();
   const todayStrDash = today.toISOString().split("T")[0]; 
   const todayStrDot = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`; 
 
-  const todayAgreedList = owners.filter(o => o.consentDate === todayStrDash);
   const missingDocList = owners.filter(o => o.agreed && (!o.idCopy || !o.privacyConsent));
-  // 1. App 컴포넌트 내부 todayMemos 로직 수정
+  
   const todayMemos = [];
   owners.forEach(o => {
     if(o.memoHistory) {
       o.memoHistory.forEach(m => {
         if(m.date.startsWith(todayStrDot)) {
-          // ownerId: o.id 를 추가합니다.
           todayMemos.push({ ownerName: o.nm, sn: o.sn, ownerId: o.id, ...m });
         }
       });
     }
   });
 
-  // 2. Dashboard 호출 부분 수정 (onSelectOwner 속성 추가)
-  // App 컴포넌트 return 안의 아래 코드를 찾아 onSelectOwner={handleSelectLot} 를 추가하세요.
+  // ★ 일자별 동의 내역을 그룹화하고 최신순으로 정렬하는 핵심 로직!
+  const agreedOwners = owners.filter(o => o.agreed && o.consentDate);
+  const groupedByDate = {};
+  agreedOwners.forEach(o => {
+    if(!groupedByDate[o.consentDate]) groupedByDate[o.consentDate] = [];
+    groupedByDate[o.consentDate].push(o);
+  });
+  const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a)); // 최신 날짜가 위로 오도록 정렬
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1073,8 +1074,8 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <DonutCard title="소유자 동의율" percent={stats.ownerRate} data={ownerData} target={target.owner} sub={`${stats.agreed}/${stats.total}명`} color="#FF2A55" gradStart="#FF8A00" remainingText={stats.ownerRate >= target.owner ? "달성 완료" : `-${remainingOwner}명`} />
-        <DonutCard title="면적 동의율" percent={stats.areaRate} data={areaData} target={target.area} sub={`${fmtNum(stats.agreedArea)}/${fmtNum(stats.totalArea)}㎡`} color="#5BA87F" gradStart="#00E676" remainingText={stats.areaRate >= target.area ? "달성 완료" : `-${fmtNum(remainingArea)}㎡`} />
+        <DonutCard title="소유자 동의율" percent={stats.ownerRate} target={target.owner} sub={`${stats.agreed}/${stats.total}명`} color="#FF2A55" remainingText={stats.ownerRate >= target.owner ? "달성 완료" : `-${remainingOwner}명`} />
+        <DonutCard title="면적 동의율" percent={stats.areaRate} target={target.area} sub={`${fmtNum(stats.agreedArea)}/${fmtNum(stats.totalArea)}㎡`} color="#5BA87F" remainingText={stats.areaRate >= target.area ? "달성 완료" : `-${fmtNum(remainingArea)}㎡`} />
       </div>
 
       <div style={{ background: "#161618", borderRadius: 16, padding: "20px 16px", border: "1px solid #1E1E22" }}>
@@ -1124,25 +1125,43 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
         </button>
       </div>
 
-      {/* ★ 1. 금일 동의 접수 섹션 독립 분리 */}
+      {/* ★ 기존 "금일 동의 접수"를 "일자별 동의 내역"으로 대폭 업그레이드! */}
       <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22", marginTop: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 4, height: 14, background: "#5BA87F", borderRadius: 2 }} />
-            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>금일 동의 접수</p>
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>일자별 동의 내역</p>
           </div>
-          <span style={{ fontSize: 11, color: "#5BA87F", fontWeight: 800, background: "rgba(91, 168, 127, 0.1)", padding: "2px 6px", borderRadius: 4 }}>{todayAgreedList.length}명</span>
+          <span style={{ fontSize: 11, color: "#5BA87F", fontWeight: 800, background: "rgba(91, 168, 127, 0.1)", padding: "2px 6px", borderRadius: 4 }}>누적 {agreedOwners.length}명</span>
         </div>
-        {todayAgreedList.length > 0 ? (
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
-            {todayAgreedList.map(o => (
-              <span key={o.id} style={{ fontSize: 11, color: "#E8E6E1", background: "#2A2A2E", padding: "4px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{o.nm} <span style={{ color: "#9CA3AF" }}>#{o.sn}</span></span>
+        
+        {sortedDates.length > 0 ? (
+          <div className="popup-list" style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 250, overflowY: "auto", paddingRight: 4 }}>
+            {sortedDates.map(date => (
+              <div key={date} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 700 }}>{date.replace(/-/g, '. ')}</span>
+                  <span style={{ fontSize: 10, color: "#5BA87F", background: "rgba(91, 168, 127, 0.1)", padding: "2px 6px", borderRadius: 4 }}>{groupedByDate[date].length}명</span>
+                  {/* 날짜가 오늘 날짜면 NEW 배지를 띄워줍니다 */}
+                  {date === todayStrDash && <span style={{ fontSize: 10, color: "#FF2A55", fontWeight: 800 }}>NEW</span>}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {groupedByDate[date].map(o => (
+                    // 이름을 누르면 해당 소유자의 상세 페이지로 즉시 이동합니다!
+                    <div key={o.id} onClick={() => onSelectOwner(o.id)} className="btn-press" style={{ background: "#2A2A2E", padding: "6px 10px", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, border: "1px solid #3A3A40" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#E8E6E1" }}>{o.nm}</span>
+                      <span style={{ fontSize: 10, color: "#9CA3AF" }}>#{o.sn}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        ) : <p style={{ fontSize: 11, color: "#555" }}>오늘 추가된 동의자가 없습니다.</p>}
+        ) : (
+          <p style={{ fontSize: 11, color: "#555", textAlign: "center", padding: "20px 0" }}>아직 접수된 동의 내역이 없습니다.</p>
+        )}
       </div>
 
-      {/* ★ 2. 서류 미비자 섹션 독립 분리 */}
       <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1152,15 +1171,14 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
           <button onClick={() => { setFilter("서류미비"); setView("list"); }} className="btn-press" style={{ fontSize: 11, color: "#FF8A00", fontWeight: 800, background: "rgba(255, 138, 0, 0.1)", padding: "2px 6px", borderRadius: 4, border: "none", cursor: "pointer" }}>{missingDocList.length}명 보기 &rarr;</button>
         </div>
         {missingDocList.length > 0 ? (
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+          <div className="popup-list" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
             {missingDocList.map(o => (
-              <span key={o.id} style={{ fontSize: 11, color: "#FF8A00", border: "1px solid rgba(255, 138, 0, 0.3)", padding: "4px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{o.nm} <span style={{ color: "#9CA3AF" }}>#{o.sn}</span></span>
+              <span key={o.id} onClick={() => onSelectOwner(o.id)} className="btn-press" style={{ cursor: "pointer", fontSize: 11, color: "#FF8A00", border: "1px solid rgba(255, 138, 0, 0.3)", padding: "4px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{o.nm} <span style={{ color: "#9CA3AF" }}>#{o.sn}</span></span>
             ))}
           </div>
         ) : <p style={{ fontSize: 11, color: "#555" }}>서류 미비자가 없습니다.</p>}
       </div>
 
-      {/* ★ 3. 오늘 등록된 메모 섹션 독립 분리 */}
       <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1170,9 +1188,9 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
           <span style={{ fontSize: 11, color: "#7B8CDE", fontWeight: 800, background: "rgba(123, 140, 222, 0.1)", padding: "2px 6px", borderRadius: 4 }}>{todayMemos.length}건</span>
         </div>
         {todayMemos.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 150, overflowY: "auto" }}>
+          <div className="popup-list" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 150, overflowY: "auto" }}>
             {todayMemos.map((m, idx) => (
-  <div key={idx} onClick={() => onSelectOwner(m.ownerId)} className="btn-press" style={{ background: "#2A2A2E", padding: "8px 10px", borderRadius: 6, cursor: "pointer" }}>
+              <div key={idx} onClick={() => onSelectOwner(m.ownerId)} className="btn-press" style={{ background: "#2A2A2E", padding: "8px 10px", borderRadius: 6, cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#7B8CDE" }}>{m.ownerName} <span style={{color: "#9CA3AF", fontWeight:400}}>#{m.sn}</span></span>
                   <span style={{ fontSize: 9, color: "#9CA3AF" }}>{m.author}</span>
@@ -1183,7 +1201,6 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
           </div>
         ) : <p style={{ fontSize: 11, color: "#555" }}>오늘 등록된 메모가 없습니다.</p>}
       </div>
-
     </div>
   );
 }
@@ -1282,7 +1299,13 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
   const today = new Date().toISOString().split("T")[0];
   const filtered = React.useMemo(() => {
     return owners.filter(o => {
-      const matchSearch = !search || o.nm.includes(search) || o.addr.includes(search) || String(o.sn) === search;
+      // ★ 기존 이름/지번 검색에 + "메모 내용 검색" 로직을 추가했습니다!
+      const matchSearch = !search || 
+        o.nm.includes(search) || 
+        o.addr.includes(search) || 
+        String(o.sn) === search ||
+        (o.memoHistory && o.memoHistory.some(m => m.text.includes(search))); // 메모 포함 여부 검사
+
       if (!matchSearch) return false;
       if (filter === "전체") return true;
       if (filter === "오늘") return o.consentDate === today;
@@ -1298,8 +1321,9 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
       <h2 style={{ fontSize: 20, fontWeight: 800 }}>소유자 명부</h2>
 
       <div style={{ position: "relative" }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="이름, 지번, 연번 검색" style={{ width: "100%", padding: "12px 12px 12px 40px", background: "#161618", border: "1px solid #1E1E22", borderRadius: 12, color: "#E8E6E1", fontSize: 13, outline: "none" }} />
-        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        {/* ★ 안내 문구(Placeholder)를 변경했습니다. */}
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="이름, 지번, 연번, 메모 검색" style={{ width: "100%", padding: "12px 12px 12px 40px", background: "#161618", border: "1px solid #1E1E22", borderRadius: 12, color: "#E8E6E1", fontSize: 13, outline: "none" }} />
+        <IconSearch size={18} className="search-icon" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }} />
       </div>
 
       <div style={{ display: "flex", gap: 6, overflow: "auto", paddingBottom: 4 }}>
@@ -1319,6 +1343,10 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
       {filtered.map(o => {
         const unitMatch = o.addr.match(/([0-9a-zA-Z가-힣]+호)/);
         const unit = unitMatch ? unitMatch[1] : "";
+        
+        // ★ 검색된 메모가 있다면 추출하여 카드 아래쪽에 예쁘게 띄워줍니다!
+        const matchedMemo = search && o.memoHistory ? o.memoHistory.find(m => m.text.includes(search)) : null;
+
         return (
           <div key={o.id} onClick={() => onSelect(o.id)} className="btn-press" style={{ background: "#161618", borderRadius: 14, padding: "14px 16px", border: "1px solid #1E1E22", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1329,22 +1357,33 @@ function ListView({ owners, filter, setFilter, search, setSearch, onSelect, stat
               </div>
               <p style={{ fontSize: 11, color: "#9CA3AF", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.addr}</p>
               
-              {/* ★ 엑셀의 '연락처' 컬럼을 정확히 타겟팅하여 가져옵니다! */}
-              {/* ★ 최신 'contact' 필드를 사용하여 전화번호를 출력합니다 */}
-<div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-  </svg>
-  <span style={{ fontSize: 11, color: "#A1A1AA", fontWeight: 600, whiteSpace: "pre-wrap" }}>
-    {o.contact || "번호 미등록"}
-  </span>
-</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 6 }}>
+                {o.contact && o.contact !== "번호 미등록" ? (
+                  o.contact.split('\n').slice(0,2).map((c, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 11, color: "#A1A1AA", fontWeight: 600 }}>📞 {c}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "#A1A1AA", fontWeight: 600 }}>📞 번호 미등록</span>
+                  </div>
+                )}
+              </div>
 
-              <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "#A1A1AA" }}>
+              <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10, color: "#A1A1AA" }}>
                 <span>{o.tp}</span>
                 <span>{o.area}㎡</span>
                 {o.residing && <span style={{ color: "#5BA87F" }}>거주중</span>}
               </div>
+
+              {/* ★ 검색어와 일치하는 메모 하이라이트 박스 표시 */}
+              {matchedMemo && (
+                <div style={{ marginTop: 10, background: "rgba(123, 140, 222, 0.1)", border: "1px solid rgba(123, 140, 222, 0.3)", borderRadius: 6, padding: "8px" }}>
+                  <p style={{ fontSize: 10, color: "#7B8CDE", fontWeight: 700, marginBottom: 3 }}>검색된 메모</p>
+                  <p style={{ fontSize: 11, color: "#E8E6E1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{matchedMemo.text}</p>
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, marginLeft: 12 }}>
               <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: o.agreed ? "rgba(34, 197, 94, 0.2)" : "#2A2A2E", color: o.agreed ? "#22C55E" : "#9CA3AF" }}>{o.agreed ? "동의완료" : "미동의"}</span>
@@ -1824,7 +1863,7 @@ function DetailView({ owner, onBack, updateOwner, currentUser }) {
               </div>
             )}
 
-            <div style={{ position: "relative" }}>
+              <div style={{ position: "relative" }}>
               <textarea 
                 value={newMemo} 
                 onChange={e => setNewMemo(e.target.value)} 

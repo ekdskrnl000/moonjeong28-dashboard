@@ -16,11 +16,7 @@ print("엑셀 파일을 읽는 중입니다...")
 df = pd.read_excel(EXCEL_PATH, sheet_name='통합', header=3)
 df.columns = df.columns.str.replace(' ', '').str.replace('\n', '')
 
-df['연번'] = df['연번'].ffill()
-df['성명'] = df['성명'].ffill()
-if '연락처' in df.columns:
-    df['연락처'] = df['연락처'].ffill()
-
+# ★ 범인 검거 2: 성명, 연락처에 남아있던 ffill() (윗줄 복사) 기능을 모조리 삭제했습니다!
 df = df.fillna("")
 
 private_area_col = next((col for col in df.columns if '전유면적' in col or '전용면적' in col), None)
@@ -59,12 +55,13 @@ def format_contact(val):
     return '\n'.join(result_lines)
 
 def merge_excel_to_firebase(dataframe):
-    print("\n파이어베이스 데이터 병합을 시작합니다...")
+    print("\n🔥 파이어베이스 잘못된 연락처/주소 강제 세탁 작업을 시작합니다...")
     success_count = 0
     grouped = dataframe.groupby('연번')
 
     for sn_val, group in grouped:
         sn_str = str(sn_val).replace('.0', '').strip()
+        
         if not sn_str.isdigit():
             continue
             
@@ -86,10 +83,9 @@ def merge_excel_to_firebase(dataframe):
                 bldg = str(r.get('건물명', '')).strip()
                 ho = str(r.get('호수', '')).replace('.0', '').strip()
                 
-                # ★ 단독주택 '0호' 방지 로직: 0이거나 비어있으면 아예 무시합니다!
-                if ho in ['0', 'nan', '']:
+                if ho in ['0', 'nan', 'None', '', 'null', '0호', 'nan호']:
                     ho = ""
-                elif not ho.endswith('호'):
+                elif ho and not ho.endswith('호'):
                     ho += '호'
                 
                 addr_str = f"문정동 {jibun}"
@@ -111,19 +107,21 @@ def merge_excel_to_firebase(dataframe):
             
             update_data = {
                 'nm': nm_val,
-                'addr': final_addr, 
+                'addr': final_addr,
                 'tp': str(first_row.get('주용도4', '')).strip(),
                 'residing': True if str(first_row.get('거주중', '')).strip() == 'O' else False,
-                'age': str(first_row.get('연령', '')).strip()
+                'age': str(first_row.get('연령', '')).strip(),
+                # ★ 핵심: 엑셀이 빈칸이면 파이어베이스 데이터도 빈칸으로 '강제 덮어쓰기' 합니다.
+                'contact': contact_val if contact_val else ""
             }
             
-            if contact_val: update_data['contact'] = contact_val
             if total_area > 0: update_data['area'] = round(total_area, 2)
             if total_private > 0: update_data['privateArea'] = round(total_private, 2)
             if total_asset > 0: update_data['asset'] = total_asset
 
             doc_ref = db.collection('owners').document(doc_id)
             doc_ref.set(update_data, merge=True)
+            
             success_count += 1
             
         except Exception as e:
