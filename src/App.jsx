@@ -1046,15 +1046,27 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
 
   const missingDocList = owners.filter(o => o.agreed && (!o.idCopy || !o.privacyConsent));
   
-  const todayMemos = [];
+  const allMemos = [];
   owners.forEach(o => {
-    if(o.memoHistory) {
+    if (o.memoHistory) {
       o.memoHistory.forEach(m => {
-        if(m.date.startsWith(todayStrDot)) {
-          todayMemos.push({ ownerName: o.nm, sn: o.sn, ownerId: o.id, ...m });
-        }
+        allMemos.push({ ownerName: o.nm, sn: o.sn, ownerId: o.id, ...m });
       });
     }
+  });
+
+  const memosByDate = {};
+  allMemos.forEach(m => {
+    const datePart = m.date.split(" ")[0];
+    if (!memosByDate[datePart]) {
+      memosByDate[datePart] = [];
+    }
+    memosByDate[datePart].push(m);
+  });
+
+  const sortedMemoDates = Object.keys(memosByDate).sort((a, b) => b.localeCompare(a));
+  sortedMemoDates.forEach(date => {
+    memosByDate[date].sort((a, b) => b.date.localeCompare(a.date));
   });
 
   // ★ 일자별 동의 내역을 그룹화하고 최신순으로 정렬하는 핵심 로직!
@@ -1180,26 +1192,43 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
       </div>
 
       <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 4, height: 14, background: "#7B8CDE", borderRadius: 2 }} />
-            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>오늘 등록된 메모</p>
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>일자별 등록 메모</p>
           </div>
-          <span style={{ fontSize: 11, color: "#7B8CDE", fontWeight: 800, background: "rgba(123, 140, 222, 0.1)", padding: "2px 6px", borderRadius: 4 }}>{todayMemos.length}건</span>
+          <span style={{ fontSize: 11, color: "#7B8CDE", fontWeight: 800, background: "rgba(123, 140, 222, 0.1)", padding: "2px 6px", borderRadius: 4 }}>전체 {allMemos.length}건</span>
         </div>
-        {todayMemos.length > 0 ? (
-          <div className="popup-list" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 150, overflowY: "auto" }}>
-            {todayMemos.map((m, idx) => (
-              <div key={idx} onClick={() => onSelectOwner(m.ownerId)} className="btn-press" style={{ background: "#2A2A2E", padding: "8px 10px", borderRadius: 6, cursor: "pointer" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#7B8CDE" }}>{m.ownerName} <span style={{color: "#9CA3AF", fontWeight:400}}>#{m.sn}</span></span>
-                  <span style={{ fontSize: 9, color: "#9CA3AF" }}>{m.author}</span>
+
+        {sortedMemoDates.length > 0 ? (
+          <div className="popup-list" style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 250, overflowY: "auto", paddingRight: 4 }}>
+            {sortedMemoDates.map(date => (
+              <div key={date} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 700 }}>{date}</span>
+                  <span style={{ fontSize: 10, color: "#7B8CDE", background: "rgba(123, 140, 222, 0.1)", padding: "2px 6px", borderRadius: 4 }}>{memosByDate[date].length}건</span>
+                  {date === todayStrDot && <span style={{ fontSize: 10, color: "#FF2A55", fontWeight: 800 }}>NEW</span>}
                 </div>
-                <p style={{ fontSize: 11, color: "#E8E6E1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.text}</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {memosByDate[date].map((m, idx) => {
+                    const timePart = m.date.split(" ")[1] || "";
+                    return (
+                      <div key={idx} onClick={() => onSelectOwner(m.ownerId)} className="btn-press" style={{ background: "#2A2A2E", padding: "8px 10px", borderRadius: 6, cursor: "pointer", border: "1px solid #3A3A40" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#7B8CDE" }}>{m.ownerName} <span style={{color: "#9CA3AF", fontWeight:400}}>#{m.sn}</span></span>
+                          <span style={{ fontSize: 9, color: "#9CA3AF" }}>{m.author} {timePart && `| ${timePart}`}</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: "#E8E6E1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.text}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
-        ) : <p style={{ fontSize: 11, color: "#555" }}>오늘 등록된 메모가 없습니다.</p>}
+        ) : (
+          <p style={{ fontSize: 11, color: "#555", textAlign: "center", padding: "20px 0" }}>등록된 메모가 없습니다.</p>
+        )}
       </div>
     </div>
   );

@@ -3,8 +3,16 @@ from firebase_admin import credentials, firestore
 import openpyxl
 from datetime import datetime
 import shutil
+import sys
+import os
 
-CREDENTIAL_PATH = './firebase-key.json'
+# Windows 터미널 한글/이모지 깨짐 방지
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+# 스크립트 파일이 위치한 디렉토리를 기준으로 절대 경로 설정
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CREDENTIAL_PATH = os.path.join(SCRIPT_DIR, 'firebase-key.json')
 if not firebase_admin._apps:
     cred = credentials.Certificate(CREDENTIAL_PATH)
     firebase_admin.initialize_app(cred)
@@ -14,7 +22,7 @@ print("\n1. 파이어베이스 현장 데이터 로딩 중...")
 owners_ref = db.collection('owners').stream()
 web_data = {doc.id: doc.to_dict() for doc in owners_ref}
 
-EXCEL_PATH = r"C:\Users\이민후\OneDrive - 주식회사 광장건설\_주_광장건설 정비 PJ - 송파구 문정동 28-1번지 일원\문정동28-1 토지조서.xlsx"
+EXCEL_PATH = r"C:\Users\이민후\OneDrive - 주식회사 광장건설\_주_광장건설 정비 PJ - 10.정비PJ 송파문정 28번지일대\토지조서 총괄.xlsx"
 current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 SAVE_PATH = EXCEL_PATH.replace(".xlsx", f"_현장반영_{current_time}.xlsx")
 

@@ -2,15 +2,22 @@ import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
 import re
+import sys
+import os
 
-# 파이어베이스 연동
-CREDENTIAL_PATH = './firebase-key.json'
+# Windows 터미널 한글/이모지 깨짐 방지
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+# 파이어베이스 연동 (스크립트 파일 위치 기준 절대 경로 설정)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CREDENTIAL_PATH = os.path.join(SCRIPT_DIR, 'firebase-key.json')
 if not firebase_admin._apps:
     cred = credentials.Certificate(CREDENTIAL_PATH)
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-EXCEL_PATH = r"C:\Users\이민후\OneDrive - 주식회사 광장건설\_주_광장건설 정비 PJ - 송파구 문정동 28-1번지 일원\문정동28-1 토지조서.xlsx"
+EXCEL_PATH = r"C:\Users\이민후\OneDrive - 주식회사 광장건설\_주_광장건설 정비 PJ - 10.정비PJ 송파문정 28번지일대\토지조서 총괄.xlsx"
 
 print("엑셀 파일을 읽는 중입니다...")
 df = pd.read_excel(EXCEL_PATH, sheet_name='통합', header=3)
