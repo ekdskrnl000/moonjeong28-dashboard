@@ -1175,23 +1175,6 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
       </div>
 
       <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 4, height: 14, background: "#FF8A00", borderRadius: 2 }} />
-            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>서류 미비자 <span style={{fontSize: 10, fontWeight: 500, color: "#9CA3AF"}}>(동의완료 기준)</span></p>
-          </div>
-          <button onClick={() => { setFilter("서류미비"); setView("list"); }} className="btn-press" style={{ fontSize: 11, color: "#FF8A00", fontWeight: 800, background: "rgba(255, 138, 0, 0.1)", padding: "2px 6px", borderRadius: 4, border: "none", cursor: "pointer" }}>{missingDocList.length}명 보기 &rarr;</button>
-        </div>
-        {missingDocList.length > 0 ? (
-          <div className="popup-list" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
-            {missingDocList.map(o => (
-              <span key={o.id} onClick={() => onSelectOwner(o.id)} className="btn-press" style={{ cursor: "pointer", fontSize: 11, color: "#FF8A00", border: "1px solid rgba(255, 138, 0, 0.3)", padding: "4px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{o.nm} <span style={{ color: "#9CA3AF" }}>#{o.sn}</span></span>
-            ))}
-          </div>
-        ) : <p style={{ fontSize: 11, color: "#555" }}>서류 미비자가 없습니다.</p>}
-      </div>
-
-      <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 4, height: 14, background: "#7B8CDE", borderRadius: 2 }} />
@@ -1229,6 +1212,23 @@ function Dashboard({ owners, stats, remainingOwner, remainingArea, setView, setF
         ) : (
           <p style={{ fontSize: 11, color: "#555", textAlign: "center", padding: "20px 0" }}>등록된 메모가 없습니다.</p>
         )}
+      </div>
+
+      <div style={{ background: "#161618", borderRadius: 16, padding: 16, border: "1px solid #1E1E22" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 4, height: 14, background: "#FF8A00", borderRadius: 2 }} />
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#E8E6E1" }}>서류 미비자 <span style={{fontSize: 10, fontWeight: 500, color: "#9CA3AF"}}>(동의완료 기준)</span></p>
+          </div>
+          <button onClick={() => { setFilter("서류미비"); setView("list"); }} className="btn-press" style={{ fontSize: 11, color: "#FF8A00", fontWeight: 800, background: "rgba(255, 138, 0, 0.1)", padding: "2px 6px", borderRadius: 4, border: "none", cursor: "pointer" }}>{missingDocList.length}명 보기 &rarr;</button>
+        </div>
+        {missingDocList.length > 0 ? (
+          <div className="popup-list" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+            {missingDocList.map(o => (
+              <span key={o.id} onClick={() => onSelectOwner(o.id)} className="btn-press" style={{ cursor: "pointer", fontSize: 11, color: "#FF8A00", border: "1px solid rgba(255, 138, 0, 0.3)", padding: "4px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{o.nm} <span style={{ color: "#9CA3AF" }}>#{o.sn}</span></span>
+            ))}
+          </div>
+        ) : <p style={{ fontSize: 11, color: "#555" }}>서류 미비자가 없습니다.</p>}
       </div>
     </div>
   );
