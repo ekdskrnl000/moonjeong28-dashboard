@@ -205,7 +205,7 @@ const AUTHORIZED_USERS = [
   { id: "u1", name: "최희현", role: "부회장", pin: "1001" },
   { id: "u2", name: "최광식", role: "부사장", pin: "1002" },
   { id: "u3", name: "이민후", role: "팀장", pin: "1003" },
-  { id: "u4", name: "이아름", role: "실장", pin: "1004" },
+  { id: "u4", name: "이아람", role: "실장", pin: "1004" },
   { id: "u5", name: "이관석", role: "대표이사", pin: "1005" },
   { id: "master", name: "시스템", role: "관리자", pin: "5162" }
 ];
