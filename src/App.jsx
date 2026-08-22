@@ -205,7 +205,7 @@ const AUTHORIZED_USERS = [
   { id: "u1", name: "최희현", role: "부회장", pin: "1001" },
   { id: "u2", name: "최광식", role: "부사장", pin: "1002" },
   { id: "u3", name: "이민후", role: "팀장", pin: "1003" },
-  { id: "u4", name: "OS요원", role: "담당", pin: "1004" },
+  { id: "u4", name: "이아름", role: "실장", pin: "1004" },
   { id: "u5", name: "이관석", role: "대표이사", pin: "1005" },
   { id: "master", name: "시스템", role: "관리자", pin: "5162" }
 ];
@@ -518,7 +518,7 @@ export default function App() {
 
               <main style={{ flex: 1, overflowY: "auto", padding: "0 16px 100px" }}>
 {view === "dash" && <Dashboard owners={owners} stats={stats} remainingOwner={remainingOwner} remainingArea={remainingArea} setView={setView} setFilter={setFilter} target={{ owner: targetOwner, area: targetArea }} onSelectOwner={handleSelectLot} />}                {view === "cat" && <CategoryView stats={stats} catTab={catTab} setCatTab={setCatTab} />}
-                {view === "map" && <div className="mobile-only-map" style={{ height: '100%' }}><MapComponent owners={owners} mapFilter={filter} onSelectOwner={handleSelectLot} /></div>}
+                {view === "map" && <div className="mobile-only-map" style={{ height: '100%' }}><MapComponent owners={owners} mapFilter={filter} selectedOwnerId={selectedId} onSelectOwner={handleSelectLot} /></div>}
                 {view === "list" && <ListView owners={owners} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} onSelect={handleSelectLot} stats={stats} />}
               </main>
 
@@ -555,6 +555,7 @@ export default function App() {
           <MapComponent 
             owners={owners} 
             mapFilter={filter} 
+            selectedOwnerId={selectedId}
             onSelectOwner={handleSelectLot} 
           />
         </div>

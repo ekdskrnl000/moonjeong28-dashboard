@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, OverlayView } from '@react-google-maps/api';
 
 const containerStyle = { width: '100%', height: '100%' };
@@ -21,7 +21,7 @@ const extractDisplayName = (jibun, ownersInLot) => {
   return displayName;
 };
 
-const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
+const MapComponent = ({ owners = [], mapFilter = "전체", selectedOwnerId = null, onSelectOwner }) => {
   const mapRef = useRef(null);
   const [mapTypeId, setMapTypeId] = useState('roadmap'); 
   const [infoWindowData, setInfoWindowData] = useState(null);
@@ -32,6 +32,17 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
 
   const [statusFilter, setStatusFilter] = useState("전체");
   const [catFilter, setCatFilter] = useState("전체");
+
+  // 동의내역/소유자 상세에서 선택한 사람의 필지를 지도에서도 계속 강조합니다.
+  // 한 소유자가 여러 필지를 가진 경우(예: 외 여러 건) 모든 필지를 함께 표시합니다.
+  const selectedOwner = useMemo(
+    () => owners.find(o => String(o.id) === String(selectedOwnerId)),
+    [owners, selectedOwnerId]
+  );
+  const selectedOwnerLots = useMemo(
+    () => selectedOwner ? (OWNER_LOTS[selectedOwner.sn] || []) : [],
+    [selectedOwner]
+  );
 
   useEffect(() => { setStatusFilter(mapFilter); }, [mapFilter]);
   
@@ -61,6 +72,7 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
       const totalCount = ownersInLot.length;
       const agreedCount = ownersInLot.filter(o => o.agreed).length;
       const isSelected = infoWindowData && infoWindowData.jibun === jibun;
+      const isOwnerSelected = selectedOwnerLots.includes(jibun);
 
       const counts = {};
       ownersInLot.forEach(o => { counts[o.cat] = (counts[o.cat] || 0) + 1; });
@@ -97,15 +109,26 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
       let finalStrokeWeight = isSelected ? 4 : 1;
       let finalStrokeColor = isSelected ? '#FFFFFF' : '#FFFFFF';
       let finalStrokeOpacity = isSelected ? 1.0 : (isVisible ? 0.4 : 0.1);
-      
+      let zIndex = isSelected ? 100 : 1;
+
       if (isSelected && isVisible) {
         fillColor = '#3B82F6'; 
         fillOpacity = Math.min(0.8, areaOpacity + 0.3);
       }
 
-      return { strokeColor: finalStrokeColor, strokeWeight: finalStrokeWeight, strokeOpacity: finalStrokeOpacity, fillColor, fillOpacity, zIndex: isSelected ? 100 : 1, title: jibun };
+      // 선택된 소유자의 필지는 현재 필터와 관계없이 파란색/노란 테두리로 식별합니다.
+      if (isOwnerSelected) {
+        fillColor = '#38BDF8';
+        fillOpacity = Math.max(0.65, areaOpacity + 0.3);
+        finalStrokeColor = '#FDE047';
+        finalStrokeWeight = 5;
+        finalStrokeOpacity = 1;
+        zIndex = 200;
+      }
+
+      return { strokeColor: finalStrokeColor, strokeWeight: finalStrokeWeight, strokeOpacity: finalStrokeOpacity, fillColor, fillOpacity, zIndex, title: jibun };
     });
-  }, [statusFilter, catFilter, infoWindowData, areaOpacity]);
+  }, [statusFilter, catFilter, infoWindowData, areaOpacity, selectedOwnerLots]);
 
   const onLoad = useCallback((map) => {
     mapRef.current = map;
@@ -159,6 +182,25 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
 
   useEffect(() => { if (mapRef.current) applyStyle(mapRef.current); }, [owners, statusFilter, catFilter, infoWindowData, areaOpacity, applyStyle]);
 
+  // 선택된 소유자의 필지가 지도에서 바로 보이도록 해당 위치로 이동합니다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedOwnerLots.length || !lotCenters.length || !window.google?.maps) return;
+
+    const targetCenters = lotCenters.filter(lot => selectedOwnerLots.includes(lot.jibun));
+    if (!targetCenters.length) return;
+
+    if (targetCenters.length === 1) {
+      map.panTo({ lat: targetCenters[0].lat, lng: targetCenters[0].lng });
+      if ((map.getZoom() || 0) < 19) map.setZoom(19);
+      return;
+    }
+
+    const bounds = new window.google.maps.LatLngBounds();
+    targetCenters.forEach(lot => bounds.extend({ lat: lot.lat, lng: lot.lng }));
+    map.fitBounds(bounds, { top: 140, right: 80, bottom: 100, left: 80 });
+  }, [selectedOwnerLots, lotCenters]);
+
   if (!isLoaded) return <div style={{ color: 'white', padding: '20px' }}>구글 지도 로딩중... 기다려주세요!</div>;
 
   return (
@@ -211,6 +253,13 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
         </div>
       </div>
 
+      {selectedOwner && selectedOwnerLots.length > 0 && (
+        <div style={{ position: 'absolute', left: '16px', bottom: '16px', zIndex: 10, maxWidth: 'calc(100% - 32px)', background: 'rgba(22, 22, 24, 0.94)', border: '2px solid #FDE047', borderRadius: '10px', padding: '10px 12px', color: '#FFF', boxShadow: '0 4px 16px rgba(0,0,0,0.55)' }}>
+          <div style={{ fontSize: '10px', color: '#FDE047', fontWeight: 800, letterSpacing: '0.04em', marginBottom: '3px' }}>현재 선택 필지</div>
+          <div style={{ fontSize: '13px', fontWeight: 800 }}>{selectedOwner.nm} · 문정동 {selectedOwnerLots.join(', ')}</div>
+        </div>
+      )}
+
       <GoogleMap 
         mapContainerStyle={containerStyle} 
         center={center} 
@@ -226,6 +275,7 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
           const totalCount = ownersInLot.length;
           const agreedCount = ownersInLot.filter(o => o.agreed).length;
           const isSelected = infoWindowData && infoWindowData.jibun === lot.jibun;
+          const isOwnerSelected = selectedOwnerLots.includes(lot.jibun);
           
           if (totalCount === 0) return null;
 
@@ -246,7 +296,8 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
             if (catFilter !== "상가/기타" && primaryCat !== catFilter) isCatMatch = false;
           }
 
-          if (!isStatusMatch || !isCatMatch) return null;
+          // 선택된 소유자의 필지는 필터에 가려져도 위치를 확인할 수 있도록 남깁니다.
+          if ((!isStatusMatch || !isCatMatch) && !isOwnerSelected) return null;
 
           let boxColor = '#991B1B'; 
           if (primaryCat === "공동주택") boxColor = '#854D0E'; 
@@ -269,9 +320,14 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
                 style={{ 
                   transform: `translate(-50%, -50%) scale(${markerScale})`, 
                   display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', pointerEvents: 'auto',
-                  zIndex: isSelected ? 100 : 1,
+                  zIndex: isOwnerSelected || isSelected ? 200 : 1,
                   transformOrigin: 'center center', 
-                  transition: 'transform 0.2s ease-out' 
+                  transition: 'transform 0.2s ease-out',
+                  padding: isOwnerSelected ? '4px' : 0,
+                  borderRadius: '10px',
+                  border: isOwnerSelected ? '3px solid #FDE047' : '3px solid transparent',
+                  background: isOwnerSelected ? 'rgba(56, 189, 248, 0.28)' : 'transparent',
+                  animation: isOwnerSelected ? 'mapPulseGlow 1.1s infinite' : 'none'
                 }}
               >
                 {showText && (
@@ -280,7 +336,7 @@ const MapComponent = ({ owners = [], mapFilter = "전체", onSelectOwner }) => {
                   </span>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.8))', animation: isSelected ? 'mapPulseGlow 1.5s infinite' : 'none', borderRadius: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.8))', animation: isSelected && !isOwnerSelected ? 'mapPulseGlow 1.5s infinite' : 'none', borderRadius: '4px' }}>
                   <svg width="28" height="28" viewBox="0 0 24 24">
                     {primaryCat === "단독/다가구" && <g><rect x="4" y="10" width="16" height="12" rx="1" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><polygon points="2,10 12,2 22,10" fill={boxColor} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" /></g>}
                     {primaryCat === "공동주택" && <g><rect x="4" y="4" width="16" height="18" rx="2" fill={boxColor} stroke="#fff" strokeWidth="1.5" /><rect x="8" y="8" width="3" height="3" fill="#fff" rx="0.5" /><rect x="13" y="8" width="3" height="3" fill="#fff" rx="0.5" /><rect x="8" y="14" width="3" height="3" fill="#fff" rx="0.5" /><rect x="13" y="14" width="3" height="3" fill="#fff" rx="0.5" /></g>}
