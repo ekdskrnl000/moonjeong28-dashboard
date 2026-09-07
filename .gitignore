@@ -3,3 +3,4 @@ dist/
 .env
 # Firebase Service Account Key
 src/firebase-key.json
+__pycache__/
