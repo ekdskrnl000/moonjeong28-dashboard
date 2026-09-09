@@ -1,11 +1,9 @@
-"""Dashboard -> original workbook. Default is read-only; --apply saves a backup."""
+"""Dashboard -> original workbook. Default is read-only; --apply updates the original."""
 import argparse
 from collections import Counter
-from datetime import datetime
 import hashlib
 import os
 from pathlib import Path
-import shutil
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
@@ -21,7 +19,10 @@ FIELDS = {'연락처': 'contact', '조합설립동의서': 'agreed', '신분증'
 
 
 def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except PermissionError as exc:
+        raise RuntimeError('Excel is open. Close it before retrying; original unchanged.') from exc
 
 
 def sync(apply=False):
@@ -141,15 +142,8 @@ def sync(apply=False):
         wb.close()
         if lock.exists() or digest(TARGET) != original_hash:
             raise RuntimeError('Original changed or opened during sync; retry later.')
-        backup_dir = TARGET.parent / '대시보드_자동반영_백업'
-        backup_dir.mkdir(exist_ok=True)
-        backup = backup_dir / f'{TARGET.stem}_{datetime.now():%Y%m%d_%H%M%S_%f}.xlsx'
-        shutil.copy2(TARGET, backup)
-        if digest(backup) != original_hash or digest(TARGET) != original_hash or lock.exists():
-            raise RuntimeError('Original changed during backup; original not replaced.')
         os.replace(temporary, TARGET)
         print('Updated: ' + str(TARGET))
-        print('Backup: ' + str(backup))
     finally:
         temporary.unlink(missing_ok=True)
 
